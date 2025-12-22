@@ -1,0 +1,17 @@
+{
+    "name": "webssh/client",
+    "description": "Cliente SSH/SFTP Web em PHP",
+    "type": "project",
+    "require": {
+        "php": ">=7.4",
+        "phpseclib/phpseclib": "~3.0"
+    },
+    "require-dev": {
+        "cboden/ratchet": "^0.4.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "WebSSH\\": "src/"
+        }
+    }
+}

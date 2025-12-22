@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSSH - Cliente SSH no Browser</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            padding: 30px 0;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #00d9ff;
+        }
+
+        header p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        .connection-form {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 1rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #00d9ff;
+            box-shadow: 0 0 10px rgba(0, 217, 255, 0.3);
+        }
+
+        .form-group textarea {
+            height: 100px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d9ff 0%, #0099cc 100%);
+            color: #000;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 217, 255, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff4757 0%, #cc0000 100%);
+            color: #fff;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 71, 87, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .terminal-container {
+            background: #000;
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            display: none;
+        }
+
+        .terminal-header {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .terminal-header .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4757;
+        }
+
+        .status-dot.connected {
+            background: #2ed573;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        #terminal {
+            height: 500px;
+            padding: 10px;
+        }
+
+        .file-manager {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            display: none;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .file-manager h3 {
+            margin-bottom: 15px;
+            color: #00d9ff;
+        }
+
+        .file-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .file-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .file-item .icon {
+            margin-right: 10px;
+            font-size: 1.2rem;
+        }
+
+        .file-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: #00d9ff;
+            color: #000;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+        }
+
+        .alert-error {
+            background: rgba(255, 71, 87, 0.2);
+            border: 1px solid #ff4757;
+            color: #ff4757;
+        }
+
+        .alert-success {
+            background: rgba(46, 213, 115, 0.2);
+            border: 1px solid #2ed573;
+            color: #2ed573;
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+        }
+
+        footer a {
+            color: #00d9ff;
+            text-decoration: none;
+        }
+
+        .auth-type {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+
+        .auth-type label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .private-key-group {
+            display: none;
+        }
+
+        .loader {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔐 WebSSH</h1>
+            <p>Conecte-se ao seu servidor SSH/SFTP diretamente do navegador</p>
+        </header>
+
+        <div class="alert alert-error" id="alertError"></div>
+        <div class="alert alert-success" id="alertSuccess"></div>
+
+        <div class="connection-form" id="connectionForm">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="host">Host</label>
+                    <input type="text" id="host" placeholder="exemplo.com ou IP">
+                </div>
+                <div class="form-group" style="max-width: 100px;">
+                    <label for="port">Porta</label>
+                    <input type="number" id="port" value="22">
+                </div>
+                <div class="form-group">
+                    <label for="username">Usuário</label>
+                    <input type="text" id="username" placeholder="root">
+                </div>
+            </div>
+
+            <div class="auth-type">
+                <label>
+                    <input type="radio" name="authType" value="password" checked onchange="toggleAuthType()">
+                    Senha
+                </label>
+                <label>
+                    <input type="radio" name="authType" value="key" onchange="toggleAuthType()">
+                    Chave Privada
+                </label>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group password-group">
+                    <label for="password">Senha</label>
+                    <input type="password" id="password" placeholder="Sua senha">
+                </div>
+            </div>
+
+            <div class="form-row private-key-group">
+                <div class="form-group">
+                    <label for="privateKey">Chave Privada (PEM)</label>
+                    <textarea id="privateKey" placeholder="-----BEGIN RSA PRIVATE KEY-----&#10;...&#10;-----END RSA PRIVATE KEY-----"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="passphrase">Passphrase (opcional)</label>
+                    <input type="password" id="passphrase" placeholder="Passphrase da chave">
+                </div>
+            </div>
+
+            <div class="buttons">
+                <button class="btn btn-primary" id="connectBtn" onclick="connect()">
+                    Conectar
+                </button>
+                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" disabled>
+                    Desconectar
+                </button>
+            </div>
+        </div>
+
+        <div class="tabs" id="tabs" style="display: none;">
+            <button class="tab active" onclick="showTab('terminal')">Terminal SSH</button>
+            <button class="tab" onclick="showTab('sftp')">Gerenciador SFTP</button>
+        </div>
+
+        <div class="terminal-container" id="terminalContainer">
+            <div class="terminal-header">
+                <div class="status">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span id="statusText">Desconectado</span>
+                </div>
+                <span id="connectionInfo"></span>
+            </div>
+            <div id="terminal"></div>
+        </div>
+
+        <div class="file-manager" id="fileManager">
+            <h3>📁 Gerenciador de Arquivos SFTP</h3>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                <label>Caminho:</label>
+                <input type="text" id="currentPath" value="/" style="flex: 1;">
+                <button class="btn btn-primary" onclick="listFiles()">Ir</button>
+            </div>
+            <div class="file-list" id="fileList">
+                <p style="color: #666;">Conecte-se primeiro para ver os arquivos</p>
+            </div>
+            <div class="file-actions">
+                <input type="file" id="uploadFile" style="display: none;" onchange="uploadFile()">
+                <button class="btn btn-primary" onclick="document.getElementById('uploadFile').click()">
+                    📤 Upload
+                </button>
+                <button class="btn btn-primary" onclick="createFolder()">
+                    📁 Nova Pasta
+                </button>
+            </div>
+        </div>
+
+        <footer>
+            <p>WebSSH - Cliente SSH/SFTP no Browser</p>
+            <p>⚠️ Suas credenciais são processadas no servidor. Use apenas em servidores confiáveis.</p>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script>
+        let terminal;
+        let fitAddon;
+        let websocket;
+        let isConnected = false;
+        let sessionId = null;
+
+        // Inicializar terminal
+        function initTerminal() {
+            terminal = new Terminal({
+                cursorBlink: true,
+                fontSize: 14,
+                fontFamily: 'Consolas, "Courier New", monospace',
+                theme: {
+                    background: '#0d0d0d',
+                    foreground: '#00ff00',
+                    cursor: '#00ff00',
+                    cursorAccent: '#000000',
+                    selection: 'rgba(0, 217, 255, 0.3)'
+                }
+            });
+            
+            fitAddon = new FitAddon.FitAddon();
+            terminal.loadAddon(fitAddon);
+            terminal.open(document.getElementById('terminal'));
+            fitAddon.fit();
+
+            terminal.writeln('\x1b[36m╔════════════════════════════════════════╗\x1b[0m');
+            terminal.writeln('\x1b[36m║     Bem-vindo ao WebSSH Terminal       ║\x1b[0m');
+            terminal.writeln('\x1b[36m║   Preencha os dados e clique Conectar  ║\x1b[0m');
+            terminal.writeln('\x1b[36m╚════════════════════════════════════════╝\x1b[0m');
+            terminal.writeln('');
+
+            // Enviar input do usuário
+            terminal.onData(data => {
+                if (isConnected && websocket && websocket.readyState === WebSocket.OPEN) {
+                    websocket.send(JSON.stringify({
+                        type: 'input',
+                        data: data
+                    }));
+                }
+            });
+
+            // Redimensionar terminal
+            window.addEventListener('resize', () => {
+                if (fitAddon) {
+                    fitAddon.fit();
+                    if (isConnected && websocket) {
+                        websocket.send(JSON.stringify({
+                            type: 'resize',
+                            cols: terminal.cols,
+                            rows: terminal.rows
+                        }));
+                    }
+                }
+            });
+        }
+
+        function toggleAuthType() {
+            const authType = document.querySelector('input[name="authType"]:checked').value;
+            document.querySelector('.password-group').style.display = authType === 'password' ? 'block' : 'none';
+            document.querySelectorAll('.private-key-group').forEach(el => {
+                el.style.display = authType === 'key' ? 'flex' : 'none';
+            });
+        }
+
+        function showAlert(type, message) {
+            const alertEl = document.getElementById(type === 'error' ? 'alertError' : 'alertSuccess');
+            alertEl.textContent = message;
+            alertEl.style.display = 'block';
+            setTimeout(() => alertEl.style.display = 'none', 5000);
+        }
+
+        function connect() {
+            const host = document.getElementById('host').value;
+            const port = document.getElementById('port').value || 22;
+            const username = document.getElementById('username').value;
+            const authType = document.querySelector('input[name="authType"]:checked').value;
+            const password = document.getElementById('password').value;
+            const privateKey = document.getElementById('privateKey').value;
+            const passphrase = document.getElementById('passphrase').value;
+
+            if (!host || !username) {
+                showAlert('error', 'Preencha o host e usuário');
+                return;
+            }
+
+            if (authType === 'password' && !password) {
+                showAlert('error', 'Preencha a senha');
+                return;
+            }
+
+            if (authType === 'key' && !privateKey) {
+                showAlert('error', 'Cole sua chave privada');
+                return;
+            }
+
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('connectBtn').innerHTML = '<span class="loader"></span> Conectando...';
+
+            // Determinar protocolo WebSocket
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/webssh/ws.php`;
+
+            try {
+                websocket = new WebSocket(wsUrl);
+            } catch (e) {
+                // Fallback para polling se WebSocket não estiver disponível
+                connectWithPolling({ host, port, username, authType, password, privateKey, passphrase });
+                return;
+            }
+
+            websocket.onopen = () => {
+                websocket.send(JSON.stringify({
+                    type: 'connect',
+                    host: host,
+                    port: parseInt(port),
+                    username: username,
+                    authType: authType,
+                    password: password,
+                    privateKey: privateKey,
+                    passphrase: passphrase
+                }));
+            };
+
+            websocket.onmessage = (event) => {
+                const msg = JSON.parse(event.data);
+                
+                if (msg.type === 'connected') {
+                    onConnected(host, username);
+                } else if (msg.type === 'output') {
+                    terminal.write(msg.data);
+                } else if (msg.type === 'error') {
+                    showAlert('error', msg.message);
+                    resetConnection();
+                } else if (msg.type === 'disconnected') {
+                    onDisconnected();
+                }
+            };
+
+            websocket.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                // Tentar fallback para polling
+                connectWithPolling({ host, port, username, authType, password, privateKey, passphrase });
+            };
+
+            websocket.onclose = () => {
+                if (isConnected) {
+                    onDisconnected();
+                }
+            };
+        }
+
+        // Fallback usando polling HTTP (para servidores sem WebSocket)
+        function connectWithPolling(credentials) {
+            fetch('ssh_handler.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'connect', ...credentials })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    sessionId = data.sessionId;
+                    onConnected(credentials.host, credentials.username);
+                    startPolling();
+                } else {
+                    showAlert('error', data.error || 'Erro ao conectar');
+                    resetConnection();
+                }
+            })
+            .catch(err => {
+                showAlert('error', 'Erro de conexão: ' + err.message);
+                resetConnection();
+            });
+        }
+
+        let pollingInterval;
+        function startPolling() {
+            pollingInterval = setInterval(() => {
+                if (!sessionId) return;
+                
+                fetch('ssh_handler.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'read', sessionId: sessionId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.output) {
+                        terminal.write(data.output);
+                    }
+                    if (data.disconnected) {
+                        onDisconnected();
+                    }
+                });
+            }, 100);
+
+            // Enviar input via polling
+            terminal.onData(data => {
+                if (isConnected && sessionId) {
+                    fetch('ssh_handler.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'write', sessionId: sessionId, data: data })
+                    });
+                }
+            });
+        }
+
+        function onConnected(host, username) {
+            isConnected = true;
+            document.getElementById('connectBtn').disabled = true;
+            document.getElementById('connectBtn').innerHTML = 'Conectar';
+            document.getElementById('disconnectBtn').disabled = false;
+            document.getElementById('statusDot').classList.add('connected');
+            document.getElementById('statusText').textContent = 'Conectado';
+            document.getElementById('connectionInfo').textContent = `${username}@${host}`;
+            document.getElementById('terminalContainer').style.display = 'block';
+            document.getElementById('tabs').style.display = 'flex';
+            
+            terminal.clear();
+            terminal.writeln('\x1b[32m✓ Conectado com sucesso!\x1b[0m\n');
+            terminal.focus();
+        }
+
+        function onDisconnected() {
+            isConnected = false;
+            resetConnection();
+            terminal.writeln('\n\x1b[31m✗ Conexão encerrada\x1b[0m');
+        }
+
+        function resetConnection() {
+            document.getElementById('connectBtn').disabled = false;
+            document.getElementById('connectBtn').innerHTML = 'Conectar';
+            document.getElementById('disconnectBtn').disabled = true;
+            document.getElementById('statusDot').classList.remove('connected');
+            document.getElementById('statusText').textContent = 'Desconectado';
+            document.getElementById('connectionInfo').textContent = '';
+            
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+        }
+
+        function disconnect() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({ type: 'disconnect' }));
+                websocket.close();
+            } else if (sessionId) {
+                fetch('ssh_handler.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'disconnect', sessionId: sessionId })
+                });
+            }
+            
+            sessionId = null;
+            onDisconnected();
+        }
+
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (tab === 'terminal') {
+                document.getElementById('terminalContainer').style.display = 'block';
+                document.getElementById('fileManager').style.display = 'none';
+                fitAddon.fit();
+            } else {
+                document.getElementById('terminalContainer').style.display = 'none';
+                document.getElementById('fileManager').style.display = 'block';
+                listFiles();
+            }
+        }
+
+        function listFiles() {
+            if (!isConnected) return;
+            
+            const path = document.getElementById('currentPath').value || '/';
+            const fileList = document.getElementById('fileList');
+            fileList.innerHTML = '<p>Carregando...</p>';
+
+            fetch('ssh_handler.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    action: 'listFiles', 
+                    sessionId: sessionId,
+                    path: path 
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    fileList.innerHTML = '';
+                    
+                    // Adicionar botão para voltar
+                    if (path !== '/') {
+                        const backItem = document.createElement('div');
+                        backItem.className = 'file-item';
+                        backItem.innerHTML = '<span class="icon">📁</span> ..';
+                        backItem.onclick = () => {
+                            const parentPath = path.split('/').slice(0, -1).join('/') || '/';
+                            document.getElementById('currentPath').value = parentPath;
+                            listFiles();
+                        };
+                        fileList.appendChild(backItem);
+                    }
+
+                    data.files.forEach(file => {
+                        const item = document.createElement('div');
+                        item.className = 'file-item';
+                        const icon = file.isDir ? '📁' : '📄';
+                        item.innerHTML = `
+                            <span class="icon">${icon}</span>
+                            <span style="flex: 1;">${file.name}</span>
+                            <span style="color: #666; font-size: 0.8rem;">${file.size}</span>
+                        `;
+                        
+                        if (file.isDir) {
+                            item.onclick = () => {
+                                document.getElementById('currentPath').value = path.replace(/\/$/, '') + '/' + file.name;
+                                listFiles();
+                            };
+                        } else {
+                            item.onclick = () => downloadFile(path + '/' + file.name, file.name);
+                        }
+                        
+                        fileList.appendChild(item);
+                    });
+                } else {
+                    fileList.innerHTML = `<p style="color: #ff4757;">${data.error}</p>`;
+                }
+            });
+        }
+
+        function downloadFile(remotePath, filename) {
+            window.open(`ssh_handler.php?action=download&sessionId=${sessionId}&path=${encodeURIComponent(remotePath)}&filename=${encodeURIComponent(filename)}`);
+        }
+
+        function uploadFile() {
+            const file = document.getElementById('uploadFile').files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('action', 'upload');
+            formData.append('sessionId', sessionId);
+            formData.append('path', document.getElementById('currentPath').value);
+            formData.append('file', file);
+
+            fetch('ssh_handler.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', 'Arquivo enviado com sucesso!');
+                    listFiles();
+                } else {
+                    showAlert('error', data.error);
+                }
+            });
+        }
+
+        function createFolder() {
+            const name = prompt('Nome da pasta:');
+            if (!name) return;
+
+            fetch('ssh_handler.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: 'mkdir',
+                    sessionId: sessionId,
+                    path: document.getElementById('currentPath').value + '/' + name
+                })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert('success', 'Pasta criada!');
+                    listFiles();
+                } else {
+                    showAlert('error', data.error);
+                }
+            });
+        }
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', () => {
+            initTerminal();
+        });
+    </script>
+</body>
+</html>
