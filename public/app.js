@@ -684,6 +684,7 @@ function updateFileSelectionUI() {
     const selectAllRow = document.getElementById('selectAllRow');
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
     const sftpPanel = document.querySelector('.sftp-panel');
+    const deleteBtn = document.getElementById('deleteBtn');
     const files = JSON.parse(fileList.dataset.files || '[]');
     
     // Toggle selection mode class
@@ -692,6 +693,7 @@ function updateFileSelectionUI() {
         selectionBar.classList.add('show');
         selectionCount.textContent = selectedFiles.length;
         sftpPanel.classList.add('selection-active');
+        deleteBtn.style.display = 'inline-flex';
         
         // Check if all selected
         if (selectedFiles.length === files.length) {
@@ -704,6 +706,7 @@ function updateFileSelectionUI() {
         selectionBar.classList.remove('show');
         sftpPanel.classList.remove('selection-active');
         selectAllCheckbox.classList.remove('checked');
+        deleteBtn.style.display = 'none';
     }
     
     items.forEach(item => {
@@ -1218,35 +1221,34 @@ document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
 });
 
 document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
-    const filesToDelete = selectedFiles.length > 0 ? selectedFiles : (selectedFile ? [selectedFile] : []);
+    const filesToDelete = selectedFiles.length > 0 ? [...selectedFiles] : (selectedFile ? [selectedFile] : []);
     
     if (filesToDelete.length === 0) {
         deleteModal.classList.remove('active');
         return;
     }
     
-    let deletedCount = 0;
-    const totalCount = filesToDelete.length;
+    deleteModal.classList.remove('active');
     
-    filesToDelete.forEach(file => {
-        const path = currentPath === '/' 
-            ? '/' + file.name 
-            : currentPath + '/' + file.name;
-        
-        socket.emit('sftp-delete-item', { 
-            path, 
-            isDirectory: file.type === 'directory' 
-        }, (response) => {
-            deletedCount++;
-            if (deletedCount === totalCount) {
-                // Todos foram processados
-                loadDirectory(currentPath);
-                showToast(`${totalCount} item(ns) excluído(s)`, 'success');
-            }
-        });
+    // Construir lista de caminhos
+    const paths = filesToDelete.map(file => {
+        return currentPath === '/' ? '/' + file.name : currentPath + '/' + file.name;
     });
     
-    deleteModal.classList.remove('active');
+    console.log('Deleting files:', paths);
+    showToast(`Excluindo ${filesToDelete.length} item(ns)...`, 'info');
+    
+    // Usar comando rm -rf para deletar tudo de uma vez
+    socket.emit('sftp-delete-files', { paths }, (response) => {
+        console.log('Delete response:', response);
+        if (response && response.error) {
+            showToast('Erro ao excluir: ' + response.error, 'error');
+        } else {
+            showToast(`${filesToDelete.length} item(ns) excluído(s)`, 'success');
+            loadDirectory(currentPath);
+        }
+    });
+    
     clearFileSelection();
     selectedFile = null;
 });

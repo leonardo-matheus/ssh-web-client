@@ -274,6 +274,44 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Delete multiple files at once
+  socket.on('sftp-delete-files', ({ paths }, callback) => {
+    console.log('Deleting multiple files:', paths);
+    const client = sshConnections.get(socket.id);
+    if (!client) {
+      if (callback) callback({ error: 'Não conectado' });
+      return;
+    }
+
+    // Usar rm -rf para deletar todos os arquivos/pastas
+    const fileList = paths.map(p => `"${p}"`).join(' ');
+    const cmd = `rm -rf ${fileList}`;
+    
+    console.log('Executing:', cmd);
+    
+    client.exec(cmd, (err, stream) => {
+      if (err) {
+        console.error('Exec error:', err.message);
+        if (callback) callback({ error: err.message });
+        return;
+      }
+      
+      let errorOutput = '';
+      stream.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      stream.on('close', (code) => {
+        console.log('Delete command exit code:', code);
+        if (code === 0) {
+          if (callback) callback({ success: true });
+        } else {
+          if (callback) callback({ error: errorOutput || 'Erro ao excluir' });
+        }
+      });
+    });
+  });
+
   socket.on('sftp-download', (remotePath) => {
     getSftpSession(socket.id, (err, sftp) => {
       if (err) {
