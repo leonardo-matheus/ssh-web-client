@@ -527,6 +527,20 @@
             z-index: 2000;
         }
 
+        @media (max-width: 768px) {
+            .toast-container {
+                top: auto;
+                bottom: 20px;
+                right: 10px;
+                left: 10px;
+            }
+
+            .toast {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
         .toast {
             padding: 15px 20px;
             border-radius: 8px;
@@ -873,16 +887,7 @@
             margin-top: 15px;
         }
 
-        /* Mobile only elements */
-        .mobile-only {
-            display: none !important;
-        }
 
-        @media (max-width: 768px) {
-            .mobile-only {
-                display: inline-flex !important;
-            }
-        }
 
         /* Header hidden state */
         .header.hidden {
@@ -1044,7 +1049,7 @@
                         <button class="btn btn-secondary" id="toggleSftpBtn" title="Arquivos">
                             <i class="fas fa-folder"></i>
                         </button>
-                        <button class="btn btn-secondary desktop-only" id="fullscreenBtn" title="Tela Cheia">
+                        <button class="btn btn-secondary" id="fullscreenBtn" title="Tela Cheia">
                             <i class="fas fa-expand"></i>
                         </button>
                         <button class="btn btn-danger" id="disconnectBtn">
