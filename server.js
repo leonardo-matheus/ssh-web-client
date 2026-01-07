@@ -243,6 +243,7 @@ io.on('connection', (socket) => {
 
   // Read file content for editor
   socket.on('sftp-read-file', (remotePath) => {
+    console.log('Reading file:', remotePath);
     const client = sftpConnections.get(socket.id);
     if (!client) {
       socket.emit('sftp-error', 'Não conectado');
@@ -251,16 +252,21 @@ io.on('connection', (socket) => {
 
     client.sftp((err, sftp) => {
       if (err) {
+        console.error('SFTP error:', err.message);
         socket.emit('sftp-error', err.message);
         return;
       }
 
-      sftp.readFile(remotePath, 'utf8', (err, data) => {
+      sftp.readFile(remotePath, (err, buffer) => {
         if (err) {
+          console.error('Read file error:', err.message);
           socket.emit('sftp-error', err.message);
           return;
         }
-        socket.emit('sftp-file-content', { content: data });
+        // Convert buffer to string
+        const content = buffer.toString('utf8');
+        console.log('File read successfully, length:', content.length);
+        socket.emit('sftp-file-content', { content: content });
       });
     });
   });

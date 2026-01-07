@@ -89,6 +89,8 @@ const isMobile = () => window.innerWidth <= 768;
 // Monaco Editor
 let monacoEditor = null;
 let currentEditingFile = null;
+let pendingFileContent = null;
+let monacoReady = false;
 
 // Language mapping
 const languageMap = {
@@ -145,7 +147,7 @@ function getLanguageFromFilename(filename) {
 
 // Initialize Monaco Editor
 function initMonaco(callback) {
-    if (monacoEditor) {
+    if (monacoReady && monacoEditor) {
         callback();
         return;
     }
@@ -174,14 +176,27 @@ function initMonaco(callback) {
             saveCurrentFile();
         });
 
+        monacoReady = true;
         callback();
     });
+}
+
+function loadContentIntoEditor(content) {
+    if (!monacoEditor || !currentEditingFile) return;
+    
+    const editorStatus = document.getElementById('editorStatus');
+    const editorLanguage = document.getElementById('editorLanguage');
+    const language = getLanguageFromFilename(currentEditingFile.name);
+    
+    editorLanguage.textContent = language;
+    monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+    monacoEditor.setValue(content);
+    editorStatus.textContent = 'Pronto';
 }
 
 function openFileInEditor(filePath, fileName) {
     const editorModal = document.getElementById('editorModal');
     const editorFileName = document.getElementById('editorFileName');
-    const editorLanguage = document.getElementById('editorLanguage');
     const editorStatus = document.getElementById('editorStatus');
 
     editorFileName.textContent = fileName;
@@ -189,13 +204,21 @@ function openFileInEditor(filePath, fileName) {
     editorModal.classList.add('active');
 
     currentEditingFile = { path: filePath, name: fileName };
+    pendingFileContent = null;
 
+    // Request file content
+    socket.emit('sftp-read-file', filePath);
+
+    // Initialize Monaco
     initMonaco(() => {
-        const language = getLanguageFromFilename(fileName);
-        editorLanguage.textContent = language;
-
-        // Request file content
-        socket.emit('sftp-read-file', filePath);
+        // Clear previous content
+        monacoEditor.setValue('');
+        
+        // If content already arrived, load it
+        if (pendingFileContent !== null) {
+            loadContentIntoEditor(pendingFileContent);
+            pendingFileContent = null;
+        }
     });
 }
 
@@ -503,13 +526,14 @@ socket.on('sftp-download', ({ fileName, data }) => {
 });
 
 // File content for editor
-socket.on('sftp-file-content', ({ content }) => {
-    const editorStatus = document.getElementById('editorStatus');
-    if (monacoEditor && currentEditingFile) {
-        const language = getLanguageFromFilename(currentEditingFile.name);
-        monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
-        monacoEditor.setValue(content);
-        editorStatus.textContent = 'Pronto';
+socket.on('sftp-file-content', (data) => {
+    const content = data.content || '';
+    
+    if (monacoReady && monacoEditor && currentEditingFile) {
+        loadContentIntoEditor(content);
+    } else {
+        // Monaco not ready yet, store for later
+        pendingFileContent = content;
     }
 });
 
