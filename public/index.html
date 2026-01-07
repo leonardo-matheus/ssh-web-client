@@ -474,13 +474,48 @@
         .hidden-input {
             display: none;
         }
+
+        /* GitHub button */
+        .github-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .github-btn:hover {
+            background: #fff;
+            color: #1a1a2e;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(255, 255, 255, 0.2);
+        }
+
+        .github-btn i {
+            font-size: 1.2rem;
+        }
+
+        /* Header hidden state */
+        .header.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <header class="header">
+        <header class="header" id="headerSection">
             <h1><i class="fas fa-terminal"></i> SSH Web Client</h1>
             <p>Conexão SSH e SFTP diretamente do seu navegador</p>
+            <a href="https://github.com/leonardo-matheus" target="_blank" class="github-btn">
+                <i class="fab fa-github"></i> leonardo-matheus
+            </a>
         </header>
 
         <!-- Connection Panel -->

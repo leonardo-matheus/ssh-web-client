@@ -79,6 +79,7 @@ const connectionInfo = document.getElementById('connectionInfo');
 const fileList = document.getElementById('fileList');
 const currentPathInput = document.getElementById('currentPath');
 const toastContainer = document.getElementById('toastContainer');
+const headerSection = document.getElementById('headerSection');
 
 // Auth tabs
 document.querySelectorAll('.auth-tab').forEach(tab => {
@@ -206,6 +207,7 @@ function disconnect() {
     statusDot.classList.remove('connected');
     statusText.textContent = 'Desconectado';
     connectionPanel.style.display = 'block';
+    headerSection.classList.remove('hidden');
     mainContent.classList.remove('active');
     connectBtn.disabled = false;
     connectBtn.innerHTML = '<i class="fas fa-plug"></i> Conectar';
@@ -218,6 +220,7 @@ socket.on('ssh-ready', () => {
     statusDot.classList.add('connected');
     statusText.textContent = 'Conectado';
     connectionPanel.style.display = 'none';
+    headerSection.classList.add('hidden');
     mainContent.classList.add('active');
     connectBtn.disabled = false;
     connectBtn.innerHTML = '<i class="fas fa-plug"></i> Conectar';
