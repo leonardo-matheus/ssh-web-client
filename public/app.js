@@ -570,11 +570,29 @@ currentPathInput.addEventListener('keypress', (e) => {
     }
 });
 
+// Dropdown toggle
+const newBtn = document.getElementById('newBtn');
+const newDropdown = document.getElementById('newDropdown');
+
+newBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    newDropdown.classList.toggle('show');
+});
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+    if (!newBtn.contains(e.target) && !newDropdown.contains(e.target)) {
+        newDropdown.classList.remove('show');
+    }
+});
+
 // New Folder
 const newFolderModal = document.getElementById('newFolderModal');
 document.getElementById('newFolderBtn').addEventListener('click', () => {
+    newDropdown.classList.remove('show');
     document.getElementById('folderName').value = '';
     newFolderModal.classList.add('active');
+    document.getElementById('folderName').focus();
 });
 
 document.getElementById('cancelFolderBtn').addEventListener('click', () => {
@@ -582,13 +600,51 @@ document.getElementById('cancelFolderBtn').addEventListener('click', () => {
 });
 
 document.getElementById('createFolderBtn').addEventListener('click', () => {
-    const name = document.getElementById('folderName').value;
+    const name = document.getElementById('folderName').value.trim();
     if (name) {
         const newPath = currentPath === '/' 
             ? '/' + name 
             : currentPath + '/' + name;
         socket.emit('sftp-mkdir', newPath);
         newFolderModal.classList.remove('active');
+    }
+});
+
+// Enter key for folder creation
+document.getElementById('folderName').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        document.getElementById('createFolderBtn').click();
+    }
+});
+
+// New File
+const newFileModal = document.getElementById('newFileModal');
+document.getElementById('newFileBtn').addEventListener('click', () => {
+    newDropdown.classList.remove('show');
+    document.getElementById('fileName').value = '';
+    newFileModal.classList.add('active');
+    document.getElementById('fileName').focus();
+});
+
+document.getElementById('cancelFileBtn').addEventListener('click', () => {
+    newFileModal.classList.remove('active');
+});
+
+document.getElementById('createFileBtn').addEventListener('click', () => {
+    const name = document.getElementById('fileName').value.trim();
+    if (name) {
+        const newPath = currentPath === '/' 
+            ? '/' + name 
+            : currentPath + '/' + name;
+        socket.emit('sftp-create-file', newPath);
+        newFileModal.classList.remove('active');
+    }
+});
+
+// Enter key for file creation
+document.getElementById('fileName').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        document.getElementById('createFileBtn').click();
     }
 });
 

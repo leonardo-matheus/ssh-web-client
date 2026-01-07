@@ -324,6 +324,55 @@
             font-size: 0.85rem;
         }
 
+        /* Dropdown */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #1a1a2e;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            min-width: 160px;
+            z-index: 100;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+            margin-top: 5px;
+        }
+
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            padding: 12px 15px;
+            border: none;
+            background: transparent;
+            color: #c9d1d9;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+
+        .dropdown-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .dropdown-item i {
+            width: 16px;
+            color: #8892b0;
+        }
+
         .path-bar {
             padding: 10px 20px;
             background: rgba(0, 0, 0, 0.2);
@@ -1098,9 +1147,19 @@
                     <button class="btn btn-secondary" id="refreshBtn" title="Atualizar">
                         <i class="fas fa-sync-alt"></i>
                     </button>
-                    <button class="btn btn-secondary" id="newFolderBtn" title="Nova Pasta">
-                        <i class="fas fa-folder-plus"></i>
-                    </button>
+                    <div class="dropdown">
+                        <button class="btn btn-primary" id="newBtn" title="Novo">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                        <div class="dropdown-menu" id="newDropdown">
+                            <button class="dropdown-item" id="newFileBtn">
+                                <i class="fas fa-file-plus"></i> Novo Arquivo
+                            </button>
+                            <button class="dropdown-item" id="newFolderBtn">
+                                <i class="fas fa-folder-plus"></i> Nova Pasta
+                            </button>
+                        </div>
+                    </div>
                     <button class="btn btn-secondary" id="uploadBtn" title="Upload">
                         <i class="fas fa-upload"></i>
                     </button>
@@ -1164,6 +1223,21 @@
             <div class="modal-actions">
                 <button class="btn btn-secondary" id="cancelFolderBtn">Cancelar</button>
                 <button class="btn btn-primary" id="createFolderBtn">Criar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- New File Modal -->
+    <div class="modal-overlay" id="newFileModal">
+        <div class="modal">
+            <h3><i class="fas fa-file-plus"></i> Novo Arquivo</h3>
+            <div class="form-group">
+                <label for="fileName">Nome do arquivo</label>
+                <input type="text" id="fileName" placeholder="arquivo.txt">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="cancelFileBtn">Cancelar</button>
+                <button class="btn btn-primary" id="createFileBtn">Criar</button>
             </div>
         </div>
     </div>

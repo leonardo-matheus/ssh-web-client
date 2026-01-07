@@ -167,6 +167,30 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Create empty file
+  socket.on('sftp-create-file', (remotePath) => {
+    const client = sftpConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-error', 'Não conectado');
+      return;
+    }
+
+    client.sftp((err, sftp) => {
+      if (err) {
+        socket.emit('sftp-error', err.message);
+        return;
+      }
+
+      sftp.writeFile(remotePath, '', 'utf8', (err) => {
+        if (err) {
+          socket.emit('sftp-error', err.message);
+          return;
+        }
+        socket.emit('sftp-success', 'Arquivo criado com sucesso');
+      });
+    });
+  });
+
   socket.on('sftp-delete', ({ path: remotePath, isDirectory }) => {
     const client = sftpConnections.get(socket.id);
     if (!client) {
