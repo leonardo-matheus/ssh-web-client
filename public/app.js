@@ -86,6 +86,140 @@ const hideSftpBtn = document.getElementById('hideSftpBtn');
 // Check if mobile
 const isMobile = () => window.innerWidth <= 768;
 
+// Monaco Editor
+let monacoEditor = null;
+let currentEditingFile = null;
+
+// Language mapping
+const languageMap = {
+    'js': 'javascript',
+    'jsx': 'javascript',
+    'ts': 'typescript',
+    'tsx': 'typescript',
+    'html': 'html',
+    'htm': 'html',
+    'css': 'css',
+    'scss': 'scss',
+    'sass': 'scss',
+    'less': 'less',
+    'json': 'json',
+    'xml': 'xml',
+    'md': 'markdown',
+    'markdown': 'markdown',
+    'php': 'php',
+    'py': 'python',
+    'python': 'python',
+    'rb': 'ruby',
+    'java': 'java',
+    'kt': 'kotlin',
+    'kotlin': 'kotlin',
+    'rs': 'rust',
+    'rust': 'rust',
+    'go': 'go',
+    'c': 'c',
+    'cpp': 'cpp',
+    'h': 'c',
+    'hpp': 'cpp',
+    'cs': 'csharp',
+    'swift': 'swift',
+    'sql': 'sql',
+    'sh': 'shell',
+    'bash': 'shell',
+    'zsh': 'shell',
+    'ps1': 'powershell',
+    'yaml': 'yaml',
+    'yml': 'yaml',
+    'toml': 'ini',
+    'ini': 'ini',
+    'conf': 'ini',
+    'dockerfile': 'dockerfile',
+    'docker': 'dockerfile',
+    'vue': 'html',
+    'svelte': 'html'
+};
+
+function getLanguageFromFilename(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    return languageMap[ext] || 'plaintext';
+}
+
+// Initialize Monaco Editor
+function initMonaco(callback) {
+    if (monacoEditor) {
+        callback();
+        return;
+    }
+
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    
+    require(['vs/editor/editor.main'], function () {
+        monacoEditor = monaco.editor.create(document.getElementById('monacoEditor'), {
+            value: '',
+            language: 'plaintext',
+            theme: 'vs-dark',
+            automaticLayout: true,
+            fontSize: 14,
+            fontFamily: '"Cascadia Code", "Fira Code", "Source Code Pro", monospace',
+            minimap: { enabled: window.innerWidth > 768 },
+            scrollBeyondLastLine: false,
+            wordWrap: 'on',
+            lineNumbers: 'on',
+            renderWhitespace: 'selection',
+            tabSize: 2,
+            insertSpaces: true,
+            formatOnPaste: true,
+            formatOnType: true
+        });
+
+        // Keyboard shortcut to save
+        monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function () {
+            saveCurrentFile();
+        });
+
+        callback();
+    });
+}
+
+function openFileInEditor(filePath, fileName) {
+    const editorModal = document.getElementById('editorModal');
+    const editorFileName = document.getElementById('editorFileName');
+    const editorLanguage = document.getElementById('editorLanguage');
+    const editorStatus = document.getElementById('editorStatus');
+
+    editorFileName.textContent = fileName;
+    editorStatus.textContent = 'Carregando...';
+    editorModal.classList.add('active');
+
+    currentEditingFile = { path: filePath, name: fileName };
+
+    initMonaco(() => {
+        const language = getLanguageFromFilename(fileName);
+        editorLanguage.textContent = language;
+
+        // Request file content
+        socket.emit('sftp-read-file', filePath);
+    });
+}
+
+function saveCurrentFile() {
+    if (!currentEditingFile || !monacoEditor) return;
+
+    const content = monacoEditor.getValue();
+    const editorStatus = document.getElementById('editorStatus');
+    editorStatus.textContent = 'Salvando...';
+
+    socket.emit('sftp-write-file', {
+        path: currentEditingFile.path,
+        content: content
+    });
+}
+
+function closeEditor() {
+    const editorModal = document.getElementById('editorModal');
+    editorModal.classList.remove('active');
+    currentEditingFile = null;
+}
+
 // Auth tabs
 document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -334,11 +468,15 @@ socket.on('sftp-list', (data) => {
         });
 
         item.addEventListener('dblclick', () => {
+            const fullPath = currentPath === '/' 
+                ? '/' + file.name 
+                : currentPath + '/' + file.name;
+                
             if (file.type === 'directory') {
-                const newPath = currentPath === '/' 
-                    ? '/' + file.name 
-                    : currentPath + '/' + file.name;
-                loadDirectory(newPath);
+                loadDirectory(fullPath);
+            } else {
+                // Open file in editor
+                openFileInEditor(fullPath, file.name);
             }
         });
 
@@ -364,6 +502,26 @@ socket.on('sftp-download', ({ fileName, data }) => {
     a.click();
     URL.revokeObjectURL(url);
     showToast('Download concluído: ' + fileName, 'success');
+});
+
+// File content for editor
+socket.on('sftp-file-content', ({ content }) => {
+    const editorStatus = document.getElementById('editorStatus');
+    if (monacoEditor && currentEditingFile) {
+        const language = getLanguageFromFilename(currentEditingFile.name);
+        monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
+        monacoEditor.setValue(content);
+        editorStatus.textContent = 'Pronto';
+    }
+});
+
+socket.on('sftp-file-saved', () => {
+    const editorStatus = document.getElementById('editorStatus');
+    editorStatus.textContent = 'Salvo!';
+    showToast('Arquivo salvo com sucesso!', 'success');
+    setTimeout(() => {
+        editorStatus.textContent = 'Pronto';
+    }, 2000);
 });
 
 // SFTP Buttons
@@ -601,9 +759,16 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.addEventListener('click', (e) => {
         if (e.target === overlay) {
             overlay.classList.remove('active');
+            if (overlay.id === 'editorModal') {
+                closeEditor();
+            }
         }
     });
 });
+
+// Editor buttons
+document.getElementById('saveFileBtn').addEventListener('click', saveCurrentFile);
+document.getElementById('closeEditorBtn').addEventListener('click', closeEditor);
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {

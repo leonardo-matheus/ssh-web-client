@@ -522,6 +522,76 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
+        /* Editor Modal */
+        .editor-modal {
+            max-width: 95vw;
+            width: 1200px;
+            height: 85vh;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: #0d1117;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .editor-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #c9d1d9;
+        }
+
+        .editor-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        #monacoEditor {
+            flex: 1;
+            min-height: 0;
+        }
+
+        .editor-status {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 20px;
+            background: #0d1117;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.8rem;
+            color: #8892b0;
+        }
+
+        @media (max-width: 768px) {
+            .editor-modal {
+                width: 100vw;
+                height: 100vh;
+                max-width: 100vw;
+                border-radius: 0;
+            }
+
+            .editor-header {
+                padding: 10px 15px;
+            }
+
+            .editor-header h3 {
+                font-size: 0.9rem;
+            }
+
+            .editor-actions .btn {
+                padding: 8px 12px;
+            }
+        }
+
         .modal h3 {
             margin-bottom: 20px;
         }
@@ -1110,6 +1180,28 @@
         </div>
     </div>
 
+    <!-- Editor Modal -->
+    <div class="modal-overlay" id="editorModal">
+        <div class="modal editor-modal">
+            <div class="editor-header">
+                <h3><i class="fas fa-code"></i> <span id="editorFileName">arquivo.txt</span></h3>
+                <div class="editor-actions">
+                    <button class="btn btn-primary" id="saveFileBtn">
+                        <i class="fas fa-save"></i> Salvar
+                    </button>
+                    <button class="btn btn-secondary" id="closeEditorBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            <div id="monacoEditor"></div>
+            <div class="editor-status">
+                <span id="editorLanguage">plaintext</span>
+                <span id="editorStatus">Pronto</span>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Container -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -1117,6 +1209,7 @@
     <input type="file" id="fileInput" class="hidden-input" multiple>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
     <script src="app.js"></script>

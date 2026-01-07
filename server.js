@@ -241,6 +241,54 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Read file content for editor
+  socket.on('sftp-read-file', (remotePath) => {
+    const client = sftpConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-error', 'Não conectado');
+      return;
+    }
+
+    client.sftp((err, sftp) => {
+      if (err) {
+        socket.emit('sftp-error', err.message);
+        return;
+      }
+
+      sftp.readFile(remotePath, 'utf8', (err, data) => {
+        if (err) {
+          socket.emit('sftp-error', err.message);
+          return;
+        }
+        socket.emit('sftp-file-content', { content: data });
+      });
+    });
+  });
+
+  // Write file content from editor
+  socket.on('sftp-write-file', ({ path: remotePath, content }) => {
+    const client = sftpConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-error', 'Não conectado');
+      return;
+    }
+
+    client.sftp((err, sftp) => {
+      if (err) {
+        socket.emit('sftp-error', err.message);
+        return;
+      }
+
+      sftp.writeFile(remotePath, content, 'utf8', (err) => {
+        if (err) {
+          socket.emit('sftp-error', err.message);
+          return;
+        }
+        socket.emit('sftp-file-saved');
+      });
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
     if (sshClient) {
