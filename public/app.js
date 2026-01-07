@@ -80,6 +80,13 @@ const fileList = document.getElementById('fileList');
 const currentPathInput = document.getElementById('currentPath');
 const toastContainer = document.getElementById('toastContainer');
 const headerSection = document.getElementById('headerSection');
+const sftpPanel = document.querySelector('.sftp-panel');
+const toggleSftpBtn = document.getElementById('toggleSftpBtn');
+const hideSftpBtn = document.getElementById('hideSftpBtn');
+const installAppBtn = document.getElementById('installAppBtn');
+
+// Check if mobile
+const isMobile = () => window.innerWidth <= 768;
 
 // Auth tabs
 document.querySelectorAll('.auth-tab').forEach(tab => {
@@ -449,6 +456,21 @@ document.getElementById('downloadBtn').addEventListener('click', () => {
     socket.emit('sftp-download', path);
 });
 
+// Toggle SFTP Panel
+function toggleSftp() {
+    mainContent.classList.toggle('sftp-visible');
+    const icon = toggleSftpBtn.querySelector('i');
+    if (mainContent.classList.contains('sftp-visible')) {
+        icon.className = 'fas fa-folder-open';
+    } else {
+        icon.className = 'fas fa-folder';
+    }
+    setTimeout(() => fitAddon && fitAddon.fit(), 100);
+}
+
+toggleSftpBtn.addEventListener('click', toggleSftp);
+hideSftpBtn.addEventListener('click', toggleSftp);
+
 // Fullscreen
 document.getElementById('fullscreenBtn').addEventListener('click', () => {
     mainContent.classList.toggle('fullscreen');
@@ -533,3 +555,41 @@ document.getElementById('clearCredentialsBtn').addEventListener('click', clearSa
 
 // Load saved credentials on page load
 document.addEventListener('DOMContentLoaded', loadSavedCredentials);
+
+// PWA Install - expose deferredPrompt globally
+window.deferredPromptGlobal = null;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    window.deferredPromptGlobal = e;
+    // Show install button in header
+    if (installAppBtn) {
+        installAppBtn.style.display = 'inline-flex';
+    }
+});
+
+if (installAppBtn) {
+    installAppBtn.addEventListener('click', async () => {
+        if (!window.deferredPromptGlobal) {
+            showToast('App já instalado ou não disponível', 'info');
+            return;
+        }
+        
+        window.deferredPromptGlobal.prompt();
+        const { outcome } = await window.deferredPromptGlobal.userChoice;
+        
+        if (outcome === 'accepted') {
+            showToast('App instalado com sucesso!', 'success');
+        }
+        
+        window.deferredPromptGlobal = null;
+        installAppBtn.style.display = 'none';
+    });
+}
+
+window.addEventListener('appinstalled', () => {
+    if (installAppBtn) {
+        installAppBtn.style.display = 'none';
+    }
+    window.deferredPromptGlobal = null;
+});

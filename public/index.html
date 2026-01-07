@@ -217,6 +217,15 @@
             display: flex;
             flex-direction: column;
             max-height: 600px;
+            transition: all 0.3s ease;
+        }
+
+        .sftp-panel.hidden {
+            display: none;
+        }
+
+        .main-content.sftp-hidden {
+            grid-template-columns: 1fr !important;
         }
 
         .sftp-header {
@@ -473,6 +482,11 @@
             }
         }
 
+        /* Mobile: SFTP toggle button highlight */
+        .sftp-visible #toggleSftpBtn {
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -616,6 +630,28 @@
                 padding: 8px 16px;
                 font-size: 0.85rem;
             }
+
+            .install-btn {
+                padding: 8px 16px;
+                font-size: 0.85rem;
+            }
+
+            /* Mobile: start with SFTP hidden */
+            .main-content.active .sftp-panel {
+                display: none;
+            }
+
+            .main-content.active.sftp-visible .sftp-panel {
+                display: flex;
+            }
+
+            .main-content.active {
+                grid-template-columns: 1fr;
+            }
+
+            .main-content.active.sftp-visible {
+                grid-template-columns: 1fr;
+            }
         }
 
         @media (max-width: 480px) {
@@ -755,58 +791,36 @@
             font-size: 1.2rem;
         }
 
-        /* Header hidden state */
-        .header.hidden {
-            display: none;
-        }
-
-        /* Install PWA prompt */
-        .install-prompt {
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
-            color: #fff;
-            padding: 15px 25px;
-            border-radius: 12px;
-            box-shadow: 0 10px 40px rgba(0, 212, 255, 0.3);
-            z-index: 3000;
-            animation: slideUp 0.3s ease;
-            max-width: 90%;
-            text-align: center;
-        }
-
-        .install-prompt.show {
-            display: block;
-        }
-
-        .install-prompt p {
-            margin-bottom: 12px;
-            font-size: 0.95rem;
-        }
-
-        .install-prompt .btn-group {
+        .header-buttons {
             display: flex;
             gap: 10px;
             justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 15px;
         }
 
-        .install-prompt .btn {
-            padding: 8px 16px;
-            font-size: 0.85rem;
+        .install-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #00d4ff, #7b2cbf);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
 
-        @keyframes slideUp {
-            from {
-                transform: translateX(-50%) translateY(100px);
-                opacity: 0;
-            }
-            to {
-                transform: translateX(-50%) translateY(0);
-                opacity: 1;
-            }
+        .install-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+        }
+
+        /* Header hidden state */
+        .header.hidden {
+            display: none;
         }
 
         /* Landscape mobile optimization */
@@ -843,9 +857,14 @@
         <header class="header" id="headerSection">
             <h1><i class="fas fa-terminal"></i> SSH Web Client</h1>
             <p>Conexão SSH e SFTP diretamente do seu navegador</p>
-            <a href="https://github.com/leonardo-matheus" target="_blank" class="github-btn">
-                <i class="fab fa-github"></i> leonardo-matheus
-            </a>
+            <div class="header-buttons">
+                <button class="install-btn" id="installAppBtn" style="display: none;">
+                    <i class="fas fa-download"></i> Instalar App
+                </button>
+                <a href="https://github.com/leonardo-matheus" target="_blank" class="github-btn">
+                    <i class="fab fa-github"></i> leonardo-matheus
+                </a>
+            </div>
         </header>
 
         <!-- Connection Panel -->
@@ -919,6 +938,9 @@
             <div class="sftp-panel">
                 <div class="sftp-header">
                     <h3><i class="fas fa-folder-open"></i> Gerenciador de Arquivos</h3>
+                    <button class="btn btn-secondary" id="hideSftpBtn" title="Ocultar">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
                 <div class="sftp-toolbar">
                     <button class="btn btn-secondary" id="refreshBtn" title="Atualizar">
@@ -956,6 +978,9 @@
                 <div class="terminal-header">
                     <h3><i class="fas fa-terminal"></i> Terminal SSH</h3>
                     <div class="terminal-actions">
+                        <button class="btn btn-secondary" id="toggleSftpBtn" title="Arquivos">
+                            <i class="fas fa-folder"></i>
+                        </button>
                         <button class="btn btn-secondary" id="fullscreenBtn" title="Tela Cheia">
                             <i class="fas fa-expand"></i>
                         </button>
@@ -1014,15 +1039,6 @@
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
     <script src="app.js"></script>
 
-    <!-- PWA Install Prompt -->
-    <div class="install-prompt" id="installPrompt">
-        <p><i class="fas fa-download"></i> Instalar SSH Client como aplicativo?</p>
-        <div class="btn-group">
-            <button class="btn btn-secondary" id="installDismiss">Agora não</button>
-            <button class="btn btn-primary" id="installBtn"><i class="fas fa-plus"></i> Instalar</button>
-        </div>
-    </div>
-
     <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {
@@ -1036,43 +1052,6 @@
                     });
             });
         }
-
-        // PWA Install prompt
-        let deferredPrompt;
-        const installPrompt = document.getElementById('installPrompt');
-        const installBtn = document.getElementById('installBtn');
-        const installDismiss = document.getElementById('installDismiss');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Show install prompt after 3 seconds
-            setTimeout(() => {
-                installPrompt.classList.add('show');
-            }, 3000);
-        });
-
-        installBtn.addEventListener('click', async () => {
-            if (!deferredPrompt) return;
-            
-            deferredPrompt.prompt();
-            const { outcome } = await deferredPrompt.userChoice;
-            
-            console.log('Install outcome:', outcome);
-            deferredPrompt = null;
-            installPrompt.classList.remove('show');
-        });
-
-        installDismiss.addEventListener('click', () => {
-            installPrompt.classList.remove('show');
-        });
-
-        window.addEventListener('appinstalled', () => {
-            console.log('PWA installed');
-            installPrompt.classList.remove('show');
-            deferredPrompt = null;
-        });
     </script>
 </body>
 </html>
