@@ -83,8 +83,6 @@ const headerSection = document.getElementById('headerSection');
 const sftpPanel = document.querySelector('.sftp-panel');
 const toggleSftpBtn = document.getElementById('toggleSftpBtn');
 const hideSftpBtn = document.getElementById('hideSftpBtn');
-const installAppBtn = document.getElementById('installAppBtn');
-
 // Check if mobile
 const isMobile = () => window.innerWidth <= 768;
 
@@ -608,46 +606,4 @@ document.getElementById('clearCredentialsBtn').addEventListener('click', clearSa
 // Load saved credentials on page load
 document.addEventListener('DOMContentLoaded', loadSavedCredentials);
 
-// PWA Install - mobile only
-window.deferredPromptGlobal = null;
 
-// Check if running as installed PWA
-const isInstalledPWA = () => {
-    return window.matchMedia('(display-mode: standalone)').matches ||
-           window.matchMedia('(display-mode: fullscreen)').matches ||
-           window.navigator.standalone === true;
-};
-
-window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    window.deferredPromptGlobal = e;
-    
-    // Show install button only on mobile and if not installed
-    if (installAppBtn && isMobile() && !isInstalledPWA()) {
-        installAppBtn.style.display = 'inline-flex';
-    }
-});
-
-if (installAppBtn) {
-    installAppBtn.addEventListener('click', async () => {
-        if (!window.deferredPromptGlobal) return;
-        
-        window.deferredPromptGlobal.prompt();
-        const { outcome } = await window.deferredPromptGlobal.userChoice;
-        
-        if (outcome === 'accepted') {
-            showToast('App instalado com sucesso!', 'success');
-        }
-        
-        window.deferredPromptGlobal = null;
-        installAppBtn.style.display = 'none';
-    });
-}
-
-window.addEventListener('appinstalled', () => {
-    showToast('App instalado com sucesso!', 'success');
-    if (installAppBtn) {
-        installAppBtn.style.display = 'none';
-    }
-    window.deferredPromptGlobal = null;
-});
