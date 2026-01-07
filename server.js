@@ -249,8 +249,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sftp-upload', ({ remotePath, fileName, data }) => {
+    console.log('Upload file:', fileName, 'to:', remotePath);
+    
     getSftpSession(socket.id, (err, sftp) => {
       if (err) {
+        console.error('SFTP session error:', err.message);
         socket.emit('sftp-error', err.message);
         return;
       }
@@ -258,12 +261,16 @@ io.on('connection', (socket) => {
       const buffer = Buffer.from(data, 'base64');
       const fullPath = remotePath.endsWith('/') ? remotePath + fileName : remotePath + '/' + fileName;
       
+      console.log('Writing to:', fullPath, 'size:', buffer.length);
+      
       sftp.writeFile(fullPath, buffer, (err) => {
         if (err) {
+          console.error('Write error:', err.message);
           socket.emit('sftp-error', err.message);
           return;
         }
-        socket.emit('sftp-success', 'Upload concluído');
+        console.log('Upload success:', fullPath);
+        socket.emit('sftp-success', 'Upload concluído: ' + fileName);
       });
     });
   });

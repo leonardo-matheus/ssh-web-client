@@ -1140,18 +1140,27 @@ document.getElementById('uploadBtn').addEventListener('click', () => {
 
 document.getElementById('fileInput').addEventListener('change', (e) => {
     const files = e.target.files;
+    if (files.length === 0) return;
+    
+    showToast(`Enviando ${files.length} arquivo(s)...`, 'info');
+    
     for (const file of files) {
+        console.log('Uploading file:', file.name, 'size:', file.size);
         const reader = new FileReader();
         reader.onload = () => {
             const base64 = btoa(
                 new Uint8Array(reader.result)
                     .reduce((data, byte) => data + String.fromCharCode(byte), '')
             );
+            console.log('Sending upload event for:', file.name);
             socket.emit('sftp-upload', {
                 remotePath: currentPath,
                 fileName: file.name,
                 data: base64
             });
+        };
+        reader.onerror = () => {
+            showToast('Erro ao ler arquivo: ' + file.name, 'error');
         };
         reader.readAsArrayBuffer(file);
     }
