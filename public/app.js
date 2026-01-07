@@ -574,14 +574,23 @@ socket.on('sftp-list', (data) => {
         item.addEventListener('click', (e) => {
             if (e.target.classList.contains('file-checkbox')) return;
             
-            if (e.ctrlKey || e.metaKey) {
-                toggleFileSelection(file, index, false);
-            } else if (e.shiftKey) {
-                toggleFileSelection(file, index, true);
+            // Se já está em modo seleção, permite Ctrl/Shift
+            if (selectedFiles.length > 0) {
+                if (e.ctrlKey || e.metaKey) {
+                    toggleFileSelection(file, index, false);
+                } else if (e.shiftKey) {
+                    toggleFileSelection(file, index, true);
+                } else {
+                    // Clique simples em modo seleção - seleciona apenas este
+                    clearFileSelection();
+                    selectedFile = file;
+                    item.classList.add('selected');
+                }
             } else {
-                // Seleção simples
-                clearFileSelection();
-                selectFile(file, index);
+                // Seleção simples (sem modo seleção) - apenas destaca
+                document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
+                item.classList.add('selected');
+                selectedFile = file;
             }
         });
 
@@ -669,12 +678,15 @@ function clearFileSelection() {
 function updateFileSelectionUI() {
     const fileList = document.getElementById('fileList');
     const items = fileList.querySelectorAll('.file-item');
+    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
     
     // Toggle selection mode class
     if (selectedFiles.length > 0) {
         fileList.classList.add('selection-mode');
+        clearSelectionBtn.style.display = 'inline-flex';
     } else {
         fileList.classList.remove('selection-mode');
+        clearSelectionBtn.style.display = 'none';
     }
     
     items.forEach(item => {
@@ -691,6 +703,25 @@ function updateFileSelectionUI() {
         }
     });
 }
+
+// Selecionar todos os arquivos
+function selectAllFiles() {
+    const fileList = document.getElementById('fileList');
+    const files = JSON.parse(fileList.dataset.files || '[]');
+    
+    selectedFiles = [...files];
+    selectedFile = files.length > 0 ? files[files.length - 1] : null;
+    lastSelectedIndex = files.length - 1;
+    updateFileSelectionUI();
+    showToast(`${files.length} item(ns) selecionado(s)`, 'info');
+}
+
+// Event listeners para botões
+document.getElementById('selectAllBtn').addEventListener('click', selectAllFiles);
+document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+    clearFileSelection();
+    showToast('Seleção cancelada', 'info');
+});
 
 // ========== CONTEXT MENU ==========
 
