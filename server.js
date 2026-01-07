@@ -230,6 +230,50 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Delete with callback (for multiple files)
+  socket.on('sftp-delete-item', ({ path: remotePath, isDirectory }, callback) => {
+    console.log('Deleting:', remotePath, 'isDirectory:', isDirectory);
+    
+    getSftpSession(socket.id, (err, sftp) => {
+      if (err) {
+        console.error('SFTP error:', err.message);
+        if (callback) callback({ error: err.message });
+        return;
+      }
+
+      if (isDirectory) {
+        // Para diretórios, usar rm -rf via exec para deletar recursivamente
+        const client = sshConnections.get(socket.id);
+        client.exec(`rm -rf "${remotePath}"`, (err, stream) => {
+          if (err) {
+            console.error('Exec error:', err.message);
+            if (callback) callback({ error: err.message });
+            return;
+          }
+          
+          stream.on('close', (code) => {
+            if (code === 0) {
+              console.log('Deleted directory:', remotePath);
+              if (callback) callback({ success: true });
+            } else {
+              if (callback) callback({ error: 'Erro ao excluir diretório' });
+            }
+          });
+        });
+      } else {
+        sftp.unlink(remotePath, (err) => {
+          if (err) {
+            console.error('Delete error:', err.message);
+            if (callback) callback({ error: err.message });
+            return;
+          }
+          console.log('Deleted file:', remotePath);
+          if (callback) callback({ success: true });
+        });
+      }
+    });
+  });
+
   socket.on('sftp-download', (remotePath) => {
     getSftpSession(socket.id, (err, sftp) => {
       if (err) {

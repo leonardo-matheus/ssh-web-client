@@ -1040,13 +1040,23 @@ function downloadSelectedFiles() {
 // ========== DELETE MULTIPLE ==========
 
 function deleteSelectedFiles() {
-    if (selectedFiles.length === 0) {
+    if (selectedFiles.length === 0 && !selectedFile) {
         showToast('Selecione arquivos para excluir', 'error');
         return;
     }
     
-    document.getElementById('deleteMessage').textContent = 
-        `Tem certeza que deseja excluir ${selectedFiles.length} item(ns)?`;
+    const count = selectedFiles.length > 0 ? selectedFiles.length : 1;
+    const fileName = selectedFiles.length === 1 ? selectedFiles[0].name : 
+                     (selectedFiles.length === 0 && selectedFile ? selectedFile.name : '');
+    
+    if (count === 1 && fileName) {
+        document.getElementById('deleteMessage').textContent = 
+            `Tem certeza que deseja excluir "${fileName}"?`;
+    } else {
+        document.getElementById('deleteMessage').textContent = 
+            `Tem certeza que deseja excluir ${count} item(ns)?`;
+    }
+    
     document.getElementById('deleteModal').classList.add('active');
 }
 
@@ -1234,13 +1244,11 @@ document.getElementById('fileName').addEventListener('keypress', (e) => {
 // Delete
 const deleteModal = document.getElementById('deleteModal');
 document.getElementById('deleteBtn').addEventListener('click', () => {
-    if (!selectedFile) {
+    if (selectedFiles.length === 0 && !selectedFile) {
         showToast('Selecione um arquivo ou pasta', 'error');
         return;
     }
-    document.getElementById('deleteMessage').textContent = 
-        `Tem certeza que deseja excluir "${selectedFile.name}"?`;
-    deleteModal.classList.add('active');
+    deleteSelectedFiles();
 });
 
 document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
@@ -1248,29 +1256,37 @@ document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
 });
 
 document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
-    if (selectedFiles.length > 0) {
-        selectedFiles.forEach(file => {
-            const path = currentPath === '/' 
-                ? '/' + file.name 
-                : currentPath + '/' + file.name;
-            socket.emit('sftp-delete', { 
-                path, 
-                isDirectory: file.type === 'directory' 
-            });
-        });
+    const filesToDelete = selectedFiles.length > 0 ? selectedFiles : (selectedFile ? [selectedFile] : []);
+    
+    if (filesToDelete.length === 0) {
         deleteModal.classList.remove('active');
-        clearFileSelection();
-    } else if (selectedFile) {
-        const path = currentPath === '/' 
-            ? '/' + selectedFile.name 
-            : currentPath + '/' + selectedFile.name;
-        socket.emit('sftp-delete', { 
-            path, 
-            isDirectory: selectedFile.type === 'directory' 
-        });
-        deleteModal.classList.remove('active');
-        selectedFile = null;
+        return;
     }
+    
+    let deletedCount = 0;
+    const totalCount = filesToDelete.length;
+    
+    filesToDelete.forEach(file => {
+        const path = currentPath === '/' 
+            ? '/' + file.name 
+            : currentPath + '/' + file.name;
+        
+        socket.emit('sftp-delete-item', { 
+            path, 
+            isDirectory: file.type === 'directory' 
+        }, (response) => {
+            deletedCount++;
+            if (deletedCount === totalCount) {
+                // Todos foram processados
+                loadDirectory(currentPath);
+                showToast(`${totalCount} item(ns) excluído(s)`, 'success');
+            }
+        });
+    });
+    
+    deleteModal.classList.remove('active');
+    clearFileSelection();
+    selectedFile = null;
 });
 
 // Upload
