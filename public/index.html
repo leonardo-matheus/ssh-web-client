@@ -34,8 +34,13 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
-            height: 100vh;
             color: #fff;
+        }
+
+        /* Lock scroll only when connected */
+        body.connected {
+            height: 100vh;
+            height: 100dvh;
             overflow: hidden;
         }
 
@@ -43,6 +48,9 @@
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
+        }
+
+        body.connected .container {
             height: 100vh;
             height: 100dvh;
             display: flex;

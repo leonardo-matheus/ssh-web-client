@@ -222,6 +222,8 @@ disconnectBtn.addEventListener('click', () => {
 
 function disconnect() {
     isConnected = false;
+    document.body.classList.remove('connected');
+    document.body.classList.remove('fullscreen-mode');
     statusDot.classList.remove('connected');
     statusText.textContent = 'Desconectado';
     connectionPanel.style.display = 'block';
@@ -235,6 +237,7 @@ function disconnect() {
 // Socket events
 socket.on('ssh-ready', () => {
     isConnected = true;
+    document.body.classList.add('connected');
     statusDot.classList.add('connected');
     statusText.textContent = 'Conectado';
     connectionPanel.style.display = 'none';
