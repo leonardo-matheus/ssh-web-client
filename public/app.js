@@ -143,6 +143,15 @@ function initTerminal() {
         }
     });
 
+    // Handle ESC to exit fullscreen (even when terminal is focused)
+    term.attachCustomKeyEventHandler((event) => {
+        if (event.key === 'Escape' && document.body.classList.contains('fullscreen-mode')) {
+            toggleFullscreen();
+            return false; // Prevent default
+        }
+        return true; // Allow other keys
+    });
+
     // Handle resize with debounce
     let resizeTimeout;
     const handleResize = () => {
