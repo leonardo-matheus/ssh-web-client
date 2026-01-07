@@ -1,6 +1,6 @@
 # 🖥️ SSH Web Client
 
-Um cliente SSH e SFTP baseado em web, similar ao [ssheasy.com](https://ssheasy.com/), desenvolvido em PHP.
+Um cliente SSH e SFTP baseado em web, similar ao [ssheasy.com](https://ssheasy.com/).
 
 ## ✨ Funcionalidades
 
@@ -13,117 +13,112 @@ Um cliente SSH e SFTP baseado em web, similar ao [ssheasy.com](https://ssheasy.c
 - 🖥️ Modo tela cheia
 - 🎨 Interface moderna e responsiva
 
-## 📋 Requisitos
-
-- PHP 8.0 ou superior
-- Composer
-- Extensões PHP:
-  - `openssl`
-  - `sockets`
-  - `mbstring`
-
-## 🚀 Instalação
-
-### 1. Clonar/Baixar o projeto
+## 🚀 Instalação Local
 
 ```bash
-cd c:\Users\leonardo.silva\Software\test\ssh-web-client
+# Instalar dependências
+npm install
+
+# Rodar em desenvolvimento
+npm run dev
+
+# Rodar em produção
+npm start
 ```
 
-### 2. Instalar dependências
+Acesse: http://localhost:3022/ssh
+
+## 📦 Deploy na VPS
+
+### 1. Clonar e Instalar
 
 ```bash
-composer install
+# Na VPS, clone o repositório
+cd /var/www
+git clone <seu-repo> ssh-web-client
+cd ssh-web-client
+
+# Instalar dependências
+npm install --production
+
+# Criar pasta de uploads
+mkdir -p uploads
 ```
 
-### 3. Iniciar os servidores
+### 2. Configurar PM2
 
-**Windows:**
 ```bash
-start.bat
+# Instalar PM2 globalmente (se ainda não tiver)
+sudo npm install -g pm2
+
+# Iniciar a aplicação
+pm2 start ecosystem.config.js
+
+# Configurar para iniciar com o sistema
+pm2 save
+pm2 startup
 ```
 
-**Linux/Mac:**
+### 3. Configurar Nginx
+
+Adicione esta configuração no seu arquivo nginx:
+
+```nginx
+# SSH Web Client (Node.js on port 3022)
+location /ssh {
+    proxy_pass http://127.0.0.1:3022;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
+}
+
+# Socket.io para SSH Web Client
+location /ssh/socket.io {
+    proxy_pass http://127.0.0.1:3022;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_cache_bypass $http_upgrade;
+    proxy_read_timeout 86400s;
+    proxy_send_timeout 86400s;
+}
+```
+
+### 4. Reiniciar Nginx
+
 ```bash
-chmod +x start.sh
-./start.sh
+sudo nginx -t
+sudo systemctl reload nginx
 ```
 
-### 4. Acessar no navegador
+## 🔧 Comandos Úteis
 
-Abra: http://localhost:8000
+```bash
+# Ver status do PM2
+pm2 status
 
-## 📁 Estrutura do Projeto
+# Ver logs
+pm2 logs ssh-web-client
 
-```
-ssh-web-client/
-├── bin/
-│   └── server.php          # Bootstrap do servidor WebSocket
-├── public/
-│   ├── api/
-│   │   └── connect.php     # API de conexão SSH
-│   ├── css/
-│   │   └── style.css       # Estilos da interface
-│   ├── js/
-│   │   └── app.js          # JavaScript do frontend
-│   └── index.html          # Página principal
-├── src/
-│   └── WebSocket/
-│       └── SSHServer.php   # Servidor WebSocket para SSH/SFTP
-├── composer.json
-├── start.bat               # Script de inicialização (Windows)
-├── start.sh                # Script de inicialização (Linux/Mac)
-└── README.md
+# Reiniciar aplicação
+pm2 restart ssh-web-client
+
+# Parar aplicação
+pm2 stop ssh-web-client
 ```
 
-## 🔧 Configuração
+## 📝 Licença
 
-### Portas padrão
+MIT
 
-- **Servidor Web:** porta 8000
-- **Servidor WebSocket:** porta 8080
-
-Para alterar as portas, edite os arquivos `start.bat` ou `start.sh`.
-
-## 🛡️ Segurança
-
-⚠️ **Atenção:** Este projeto é destinado para uso em ambiente de desenvolvimento ou rede local. Para uso em produção, considere:
-
-- Usar HTTPS com certificado SSL
-- Implementar autenticação adicional
-- Usar WSS (WebSocket Secure)
-- Configurar firewall apropriadamente
-- Não expor diretamente à internet
-
-## 🔌 Tecnologias Utilizadas
-
-### Backend
-- **PHP 8.0+** - Linguagem principal
-- **phpseclib** - Biblioteca para SSH/SFTP
-- **Ratchet** - Servidor WebSocket
-
-### Frontend
-- **xterm.js** - Emulador de terminal
-- **HTML5/CSS3** - Interface
-- **JavaScript ES6+** - Lógica do cliente
-
-## 📝 Como Usar
-
-1. Acesse http://localhost:8000
-2. Preencha os dados de conexão:
-   - **Host:** IP ou domínio do servidor SSH
-   - **Porta:** geralmente 22
-   - **Usuário:** seu usuário SSH
-   - **Senha:** sua senha
-   - **Chave Privada:** (opcional) cole sua chave privada
-3. Clique em **Conectar**
-4. Use o terminal normalmente
-5. Clique em **📁 SFTP** para gerenciar arquivos
-
-## 🤝 Contribuição
-
-Contribuições são bem-vindas! Sinta-se à vontade para abrir issues e pull requests.
-
-## 📄 Licença
-
-MIT License
