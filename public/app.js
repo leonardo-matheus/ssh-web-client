@@ -181,6 +181,17 @@ function initMonaco(callback) {
     });
 }
 
+function showEditorLoading(show, message = 'Carregando arquivo...') {
+    const loading = document.getElementById('editorLoading');
+    const loadingText = loading.querySelector('p');
+    loadingText.textContent = message;
+    if (show) {
+        loading.classList.add('show');
+    } else {
+        loading.classList.remove('show');
+    }
+}
+
 function loadContentIntoEditor(content) {
     if (!monacoEditor || !currentEditingFile) return;
     
@@ -191,7 +202,9 @@ function loadContentIntoEditor(content) {
     editorLanguage.textContent = language;
     monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
     monacoEditor.setValue(content);
+    monacoEditor.focus();
     editorStatus.textContent = 'Pronto';
+    showEditorLoading(false);
 }
 
 function openFileInEditor(filePath, fileName) {
@@ -202,23 +215,18 @@ function openFileInEditor(filePath, fileName) {
     editorFileName.textContent = fileName;
     editorStatus.textContent = 'Carregando...';
     editorModal.classList.add('active');
+    showEditorLoading(true, 'Baixando arquivo...');
 
     currentEditingFile = { path: filePath, name: fileName };
     pendingFileContent = null;
 
-    // Request file content
-    socket.emit('sftp-read-file', filePath);
-
-    // Initialize Monaco
+    // Initialize Monaco first
     initMonaco(() => {
         // Clear previous content
         monacoEditor.setValue('');
         
-        // If content already arrived, load it
-        if (pendingFileContent !== null) {
-            loadContentIntoEditor(pendingFileContent);
-            pendingFileContent = null;
-        }
+        // Request file content after Monaco is ready
+        socket.emit('sftp-read-file', filePath);
     });
 }
 
@@ -228,6 +236,7 @@ function saveCurrentFile() {
     const content = monacoEditor.getValue();
     const editorStatus = document.getElementById('editorStatus');
     editorStatus.textContent = 'Salvando...';
+    showEditorLoading(true, 'Salvando arquivo...');
 
     socket.emit('sftp-write-file', {
         path: currentEditingFile.path,
@@ -527,6 +536,7 @@ socket.on('sftp-download', ({ fileName, data }) => {
 
 // File content for editor
 socket.on('sftp-file-content', (data) => {
+    console.log('File content received');
     const content = data.content || '';
     
     if (monacoReady && monacoEditor && currentEditingFile) {
@@ -537,13 +547,30 @@ socket.on('sftp-file-content', (data) => {
     }
 });
 
-socket.on('sftp-file-saved', () => {
+// File read error
+socket.on('sftp-file-error', (error) => {
+    console.error('File error:', error);
+    showEditorLoading(false);
+    showToast('Erro ao abrir arquivo: ' + error, 'error');
+    closeEditor();
+});
+
+socket.on('sftp-file-saved', (data) => {
     const editorStatus = document.getElementById('editorStatus');
+    showEditorLoading(false);
     editorStatus.textContent = 'Salvo!';
     showToast('Arquivo salvo com sucesso!', 'success');
     setTimeout(() => {
         editorStatus.textContent = 'Pronto';
     }, 2000);
+});
+
+// File save error
+socket.on('sftp-save-error', (error) => {
+    const editorStatus = document.getElementById('editorStatus');
+    showEditorLoading(false);
+    editorStatus.textContent = 'Erro ao salvar';
+    showToast('Erro ao salvar: ' + error, 'error');
 });
 
 // SFTP Buttons

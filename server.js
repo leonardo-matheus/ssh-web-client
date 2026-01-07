@@ -271,50 +271,71 @@ io.on('connection', (socket) => {
     const client = sftpConnections.get(socket.id);
     if (!client) {
       socket.emit('sftp-error', 'Não conectado');
+      socket.emit('sftp-file-error', 'Não conectado');
       return;
     }
 
     client.sftp((err, sftp) => {
       if (err) {
         console.error('SFTP error:', err.message);
-        socket.emit('sftp-error', err.message);
+        socket.emit('sftp-file-error', err.message);
         return;
       }
 
-      sftp.readFile(remotePath, (err, buffer) => {
+      // First check file stats to get size
+      sftp.stat(remotePath, (err, stats) => {
         if (err) {
-          console.error('Read file error:', err.message);
-          socket.emit('sftp-error', err.message);
+          console.error('Stat error:', err.message);
+          socket.emit('sftp-file-error', err.message);
           return;
         }
-        // Convert buffer to string
-        const content = buffer.toString('utf8');
-        console.log('File read successfully, length:', content.length);
-        socket.emit('sftp-file-content', { content: content });
+
+        // Limit file size to 5MB for editor
+        const maxSize = 5 * 1024 * 1024;
+        if (stats.size > maxSize) {
+          socket.emit('sftp-file-error', 'Arquivo muito grande para editar (máx 5MB)');
+          return;
+        }
+
+        sftp.readFile(remotePath, (err, buffer) => {
+          if (err) {
+            console.error('Read file error:', err.message);
+            socket.emit('sftp-file-error', err.message);
+            return;
+          }
+          // Convert buffer to string
+          const content = buffer.toString('utf8');
+          console.log('File read successfully, length:', content.length);
+          socket.emit('sftp-file-content', { content: content, path: remotePath });
+        });
       });
     });
   });
 
   // Write file content from editor
   socket.on('sftp-write-file', ({ path: remotePath, content }) => {
+    console.log('Writing file:', remotePath);
     const client = sftpConnections.get(socket.id);
     if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
+      socket.emit('sftp-save-error', 'Não conectado');
       return;
     }
 
     client.sftp((err, sftp) => {
       if (err) {
-        socket.emit('sftp-error', err.message);
+        console.error('SFTP error:', err.message);
+        socket.emit('sftp-save-error', err.message);
         return;
       }
 
       sftp.writeFile(remotePath, content, 'utf8', (err) => {
         if (err) {
-          socket.emit('sftp-error', err.message);
+          console.error('Write file error:', err.message);
+          socket.emit('sftp-save-error', err.message);
           return;
         }
-        socket.emit('sftp-file-saved');
+        console.log('File saved successfully');
+        socket.emit('sftp-file-saved', { path: remotePath });
       });
     });
   });
