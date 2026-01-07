@@ -150,9 +150,7 @@ function initMonaco(callback) {
         return;
     }
 
-    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
-    
-    require(['vs/editor/editor.main'], function () {
+    monacoRequire(['vs/editor/editor.main'], function () {
         monacoEditor = monaco.editor.create(document.getElementById('monacoEditor'), {
             value: '',
             language: 'plaintext',

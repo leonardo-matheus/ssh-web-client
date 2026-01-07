@@ -44,14 +44,23 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests and socket.io
-  if (event.request.method !== 'GET' || event.request.url.includes('socket.io')) {
+  const url = event.request.url;
+  
+  // Skip non-GET requests, socket.io, and non-http(s) schemes
+  if (event.request.method !== 'GET' || 
+      url.includes('socket.io') ||
+      !url.startsWith('http')) {
     return;
   }
 
   event.respondWith(
     fetch(event.request)
       .then((response) => {
+        // Only cache successful responses
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
+        }
+        
         // Clone the response
         const responseClone = response.clone();
         
@@ -59,7 +68,8 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME)
           .then((cache) => {
             cache.put(event.request, responseClone);
-          });
+          })
+          .catch(() => {});
         
         return response;
       })

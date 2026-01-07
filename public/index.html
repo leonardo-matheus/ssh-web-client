@@ -1209,9 +1209,22 @@
     <input type="file" id="fileInput" class="hidden-input" multiple>
 
     <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4/dist/socket.io.min.js"></script>
+    <script>
+        // Save AMD define before Monaco overwrites it
+        var defined = typeof define !== 'undefined' ? define : undefined;
+        var required = typeof require !== 'undefined' ? require : undefined;
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+        // Monaco require config
+        var monacoRequire = require;
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        // Restore original define/require if they existed
+        if (defined) define = defined;
+        if (required) require = required;
+    </script>
     <script src="app.js"></script>
 
     <!-- Service Worker Registration -->
