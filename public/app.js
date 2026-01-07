@@ -91,6 +91,7 @@ let monacoEditor = null;
 let currentEditingFile = null;
 let pendingFileContent = null;
 let monacoReady = false;
+let fileLoadTimeout = null;
 
 // Language mapping
 const languageMap = {
@@ -195,9 +196,17 @@ function showEditorLoading(show, message = 'Carregando arquivo...') {
 function loadContentIntoEditor(content) {
     if (!monacoEditor || !currentEditingFile) return;
     
+    // Clear timeout
+    if (fileLoadTimeout) {
+        clearTimeout(fileLoadTimeout);
+        fileLoadTimeout = null;
+    }
+    
     const editorStatus = document.getElementById('editorStatus');
     const editorLanguage = document.getElementById('editorLanguage');
     const language = getLanguageFromFilename(currentEditingFile.name);
+    
+    console.log('Setting editor content, language:', language);
     
     editorLanguage.textContent = language;
     monaco.editor.setModelLanguage(monacoEditor.getModel(), language);
@@ -212,6 +221,8 @@ function openFileInEditor(filePath, fileName) {
     const editorFileName = document.getElementById('editorFileName');
     const editorStatus = document.getElementById('editorStatus');
 
+    console.log('Opening file:', filePath);
+    
     editorFileName.textContent = fileName;
     editorStatus.textContent = 'Carregando...';
     editorModal.classList.add('active');
@@ -219,14 +230,38 @@ function openFileInEditor(filePath, fileName) {
 
     currentEditingFile = { path: filePath, name: fileName };
     pendingFileContent = null;
+    
+    // Clear any existing timeout
+    if (fileLoadTimeout) {
+        clearTimeout(fileLoadTimeout);
+    }
+    
+    // Set timeout for loading
+    fileLoadTimeout = setTimeout(() => {
+        if (document.getElementById('editorLoading').classList.contains('show')) {
+            console.log('File load timeout');
+            showEditorLoading(false);
+            showToast('Timeout ao carregar arquivo. Tente novamente.', 'error');
+            closeEditor();
+        }
+    }, 30000); // 30 second timeout
 
-    // Initialize Monaco first
+    // Request file content immediately
+    console.log('Requesting file content...');
+    socket.emit('sftp-read-file', filePath);
+
+    // Initialize Monaco
     initMonaco(() => {
+        console.log('Monaco ready');
         // Clear previous content
-        monacoEditor.setValue('');
+        monacoEditor.setValue('// Carregando...');
         
-        // Request file content after Monaco is ready
-        socket.emit('sftp-read-file', filePath);
+        // If content already arrived, load it
+        if (pendingFileContent !== null) {
+            console.log('Loading pending content');
+            loadContentIntoEditor(pendingFileContent);
+            pendingFileContent = null;
+        }
     });
 }
 
@@ -536,13 +571,14 @@ socket.on('sftp-download', ({ fileName, data }) => {
 
 // File content for editor
 socket.on('sftp-file-content', (data) => {
-    console.log('File content received');
-    const content = data.content || '';
+    console.log('=== File content received, length:', data.content ? data.content.length : 0);
+    const content = data.content !== undefined ? data.content : '';
     
     if (monacoReady && monacoEditor && currentEditingFile) {
+        console.log('Monaco ready, loading content directly');
         loadContentIntoEditor(content);
     } else {
-        // Monaco not ready yet, store for later
+        console.log('Monaco not ready, storing content');
         pendingFileContent = content;
     }
 });

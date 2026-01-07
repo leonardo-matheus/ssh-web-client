@@ -265,49 +265,42 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Read file content for editor
+  // Read file content for editor - using stream for better reliability
   socket.on('sftp-read-file', (remotePath) => {
-    console.log('Reading file:', remotePath);
+    console.log('=== Reading file:', remotePath);
     const client = sftpConnections.get(socket.id);
     if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
+      console.log('Error: Not connected');
       socket.emit('sftp-file-error', 'Não conectado');
       return;
     }
 
     client.sftp((err, sftp) => {
       if (err) {
-        console.error('SFTP error:', err.message);
+        console.error('SFTP session error:', err.message);
         socket.emit('sftp-file-error', err.message);
         return;
       }
 
-      // First check file stats to get size
-      sftp.stat(remotePath, (err, stats) => {
-        if (err) {
-          console.error('Stat error:', err.message);
-          socket.emit('sftp-file-error', err.message);
-          return;
-        }
-
-        // Limit file size to 5MB for editor
-        const maxSize = 5 * 1024 * 1024;
-        if (stats.size > maxSize) {
-          socket.emit('sftp-file-error', 'Arquivo muito grande para editar (máx 5MB)');
-          return;
-        }
-
-        sftp.readFile(remotePath, (err, buffer) => {
-          if (err) {
-            console.error('Read file error:', err.message);
-            socket.emit('sftp-file-error', err.message);
-            return;
-          }
-          // Convert buffer to string
-          const content = buffer.toString('utf8');
-          console.log('File read successfully, length:', content.length);
-          socket.emit('sftp-file-content', { content: content, path: remotePath });
-        });
+      console.log('SFTP session opened, reading file...');
+      
+      // Use readFile directly without stat check first
+      const chunks = [];
+      const readStream = sftp.createReadStream(remotePath, { encoding: 'utf8' });
+      
+      readStream.on('data', (chunk) => {
+        chunks.push(chunk);
+      });
+      
+      readStream.on('end', () => {
+        const content = chunks.join('');
+        console.log('File read successfully, length:', content.length);
+        socket.emit('sftp-file-content', { content: content, path: remotePath });
+      });
+      
+      readStream.on('error', (err) => {
+        console.error('Read stream error:', err.message);
+        socket.emit('sftp-file-error', err.message);
       });
     });
   });
