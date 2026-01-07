@@ -3,6 +3,14 @@ const socket = io({
     path: '/ssh/socket.io'
 });
 
+// Test socket connection
+socket.on('connect', () => {
+    console.log('Socket connected, testing...');
+    socket.emit('ping-test', (response) => {
+        console.log('Ping response:', response);
+    });
+});
+
 // Terminal setup
 let term = null;
 let fitAddon = null;
@@ -258,7 +266,22 @@ function openFileInEditor(filePath, fileName) {
         return;
     }
     
-    socket.emit('sftp-read-file', filePath);
+    // Use callback to confirm server received the event
+    socket.emit('sftp-read-file', filePath, (response) => {
+        console.log('Server response:', response);
+        if (response && response.error) {
+            showEditorLoading(false);
+            showToast('Erro: ' + response.error, 'error');
+            closeEditor();
+        }
+    });
+    
+    // Also try with timeout to emit again if no response
+    setTimeout(() => {
+        if (document.getElementById('editorLoading').classList.contains('show') && pendingFileContent === null) {
+            console.log('No response yet, checking connection...');
+        }
+    }, 3000);
 
     // Initialize Monaco
     initMonaco(() => {

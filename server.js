@@ -43,6 +43,12 @@ io.on('connection', (socket) => {
     console.log('Event received:', eventName);
   });
 
+  // Test ping
+  socket.on('ping-test', (callback) => {
+    console.log('Ping received from client');
+    if (callback) callback({ pong: true, time: Date.now() });
+  });
+
   socket.on('ssh-connect', (config) => {
     sshClient = new Client();
     
@@ -270,13 +276,15 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Read file content for editor - using stream for better reliability
-  socket.on('sftp-read-file', (remotePath) => {
+  // Read file content for editor
+  socket.on('sftp-read-file', (remotePath, callback) => {
     console.log('=== Reading file:', remotePath);
     const client = sftpConnections.get(socket.id);
     if (!client) {
       console.log('Error: Not connected');
-      socket.emit('sftp-file-error', 'Não conectado');
+      const error = 'Não conectado';
+      socket.emit('sftp-file-error', error);
+      if (callback) callback({ error });
       return;
     }
 
@@ -284,28 +292,23 @@ io.on('connection', (socket) => {
       if (err) {
         console.error('SFTP session error:', err.message);
         socket.emit('sftp-file-error', err.message);
+        if (callback) callback({ error: err.message });
         return;
       }
 
       console.log('SFTP session opened, reading file...');
       
-      // Use readFile directly without stat check first
-      const chunks = [];
-      const readStream = sftp.createReadStream(remotePath, { encoding: 'utf8' });
-      
-      readStream.on('data', (chunk) => {
-        chunks.push(chunk);
-      });
-      
-      readStream.on('end', () => {
-        const content = chunks.join('');
+      sftp.readFile(remotePath, 'utf8', (err, content) => {
+        if (err) {
+          console.error('Read file error:', err.message);
+          socket.emit('sftp-file-error', err.message);
+          if (callback) callback({ error: err.message });
+          return;
+        }
+        
         console.log('File read successfully, length:', content.length);
         socket.emit('sftp-file-content', { content: content, path: remotePath });
-      });
-      
-      readStream.on('error', (err) => {
-        console.error('Read stream error:', err.message);
-        socket.emit('sftp-file-error', err.message);
+        if (callback) callback({ success: true });
       });
     });
   });
