@@ -20,6 +20,7 @@ let selectedFile = null;
 let selectedFiles = []; // Array para múltipla seleção
 let lastSelectedIndex = -1; // Para seleção com Shift
 let copyMoveOperation = null; // 'copy' ou 'move'
+let clipboard = { files: [], operation: null }; // Para Ctrl+C/X/V
 
 // LocalStorage key
 const STORAGE_KEY = 'ssh_credentials';
@@ -678,15 +679,31 @@ function clearFileSelection() {
 function updateFileSelectionUI() {
     const fileList = document.getElementById('fileList');
     const items = fileList.querySelectorAll('.file-item');
-    const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+    const selectionBar = document.getElementById('selectionBar');
+    const selectionCount = document.getElementById('selectionCount');
+    const selectAllRow = document.getElementById('selectAllRow');
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const sftpPanel = document.querySelector('.sftp-panel');
+    const files = JSON.parse(fileList.dataset.files || '[]');
     
     // Toggle selection mode class
     if (selectedFiles.length > 0) {
         fileList.classList.add('selection-mode');
-        clearSelectionBtn.style.display = 'inline-flex';
+        selectionBar.classList.add('show');
+        selectionCount.textContent = selectedFiles.length;
+        sftpPanel.classList.add('selection-active');
+        
+        // Check if all selected
+        if (selectedFiles.length === files.length) {
+            selectAllCheckbox.classList.add('checked');
+        } else {
+            selectAllCheckbox.classList.remove('checked');
+        }
     } else {
         fileList.classList.remove('selection-mode');
-        clearSelectionBtn.style.display = 'none';
+        selectionBar.classList.remove('show');
+        sftpPanel.classList.remove('selection-active');
+        selectAllCheckbox.classList.remove('checked');
     }
     
     items.forEach(item => {
@@ -709,18 +726,110 @@ function selectAllFiles() {
     const fileList = document.getElementById('fileList');
     const files = JSON.parse(fileList.dataset.files || '[]');
     
-    selectedFiles = [...files];
-    selectedFile = files.length > 0 ? files[files.length - 1] : null;
-    lastSelectedIndex = files.length - 1;
-    updateFileSelectionUI();
-    showToast(`${files.length} item(ns) selecionado(s)`, 'info');
+    if (selectedFiles.length === files.length) {
+        // Se todos selecionados, deseleciona
+        clearFileSelection();
+    } else {
+        // Seleciona todos
+        selectedFiles = [...files];
+        selectedFile = files.length > 0 ? files[files.length - 1] : null;
+        lastSelectedIndex = files.length - 1;
+        updateFileSelectionUI();
+    }
 }
 
 // Event listeners para botões
-document.getElementById('selectAllBtn').addEventListener('click', selectAllFiles);
+document.getElementById('selectAllRow').addEventListener('click', selectAllFiles);
 document.getElementById('clearSelectionBtn').addEventListener('click', () => {
     clearFileSelection();
-    showToast('Seleção cancelada', 'info');
+});
+
+// ========== KEYBOARD SHORTCUTS (Ctrl+A, C, X, V) ==========
+
+function copyToClipboard(cut = false) {
+    if (selectedFiles.length === 0) {
+        showToast('Selecione arquivos primeiro', 'error');
+        return;
+    }
+    
+    clipboard.files = selectedFiles.map(f => {
+        return currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
+    });
+    clipboard.operation = cut ? 'cut' : 'copy';
+    
+    showToast(`${selectedFiles.length} item(ns) ${cut ? 'recortado(s)' : 'copiado(s)'}`, 'success');
+}
+
+function pasteFromClipboard() {
+    if (clipboard.files.length === 0) {
+        showToast('Nada para colar', 'error');
+        return;
+    }
+    
+    const operation = clipboard.operation === 'cut' ? 'move' : 'copy';
+    
+    socket.emit('sftp-copy-move', {
+        operation: operation,
+        files: clipboard.files,
+        destination: currentPath
+    });
+    
+    showToast(`Colando ${clipboard.files.length} item(ns)...`, 'info');
+    
+    // Limpar clipboard se foi recortar
+    if (clipboard.operation === 'cut') {
+        clipboard = { files: [], operation: null };
+    }
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+    // Ignorar se estiver digitando em input/textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    // Ignorar se modal estiver aberto
+    if (document.querySelector('.modal-overlay.active')) {
+        return;
+    }
+    
+    // Ctrl+A - Selecionar tudo
+    if ((e.ctrlKey || e.metaKey) && e.key === 'a' && isConnected) {
+        e.preventDefault();
+        selectAllFiles();
+    }
+    
+    // Ctrl+C - Copiar
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedFiles.length > 0) {
+        e.preventDefault();
+        copyToClipboard(false);
+    }
+    
+    // Ctrl+X - Recortar
+    if ((e.ctrlKey || e.metaKey) && e.key === 'x' && selectedFiles.length > 0) {
+        e.preventDefault();
+        copyToClipboard(true);
+    }
+    
+    // Ctrl+V - Colar
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard.files.length > 0) {
+        e.preventDefault();
+        pasteFromClipboard();
+    }
+    
+    // Delete - Excluir
+    if (e.key === 'Delete' && selectedFiles.length > 0) {
+        e.preventDefault();
+        deleteSelectedFiles();
+    }
+    
+    // Escape - Cancelar seleção
+    if (e.key === 'Escape') {
+        if (selectedFiles.length > 0) {
+            clearFileSelection();
+        }
+    }
 });
 
 // ========== CONTEXT MENU ==========
@@ -1343,14 +1452,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 document.getElementById('saveFileBtn').addEventListener('click', saveCurrentFile);
 document.getElementById('closeEditorBtn').addEventListener('click', closeEditor);
 
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        // Close modals
-        document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-        // Exit fullscreen handled in toggleFullscreen listener
-    }
-});
+
 
 // Clear credentials button
 document.getElementById('clearCredentialsBtn').addEventListener('click', clearSavedCredentials);

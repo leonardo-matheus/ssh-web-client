@@ -521,6 +521,76 @@
             display: flex;
         }
 
+        /* Selection bar */
+        .selection-bar {
+            display: none;
+            padding: 8px 15px;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.2), rgba(123, 44, 191, 0.2));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .selection-bar.show {
+            display: block;
+        }
+
+        .selection-info {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .selection-count {
+            font-size: 0.9rem;
+            color: #00d4ff;
+            font-weight: 500;
+        }
+
+        .selection-clear {
+            background: transparent;
+            border: none;
+            color: #8892b0;
+            cursor: pointer;
+            padding: 5px 10px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .selection-clear:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ff7b72;
+        }
+
+        /* Select all row */
+        .select-all-row {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            cursor: pointer;
+            font-size: 0.85rem;
+            color: #8892b0;
+            transition: all 0.2s ease;
+        }
+
+        .select-all-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .select-all-row .file-checkbox {
+            display: flex;
+        }
+
+        .file-list.selection-mode + .select-all-row,
+        .selection-bar.show + .path-bar + .select-all-row {
+            display: flex;
+        }
+
+        .sftp-panel.selection-active .select-all-row {
+            display: flex;
+        }
+
         .file-item i {
             font-size: 1.2rem;
             width: 24px;
@@ -1307,12 +1377,6 @@
                             </button>
                         </div>
                     </div>
-                    <button class="btn btn-secondary" id="selectAllBtn" title="Selecionar tudo">
-                        <i class="fas fa-check-double"></i>
-                    </button>
-                    <button class="btn btn-secondary" id="clearSelectionBtn" title="Cancelar seleção" style="display: none;">
-                        <i class="fas fa-times"></i>
-                    </button>
                     <button class="btn btn-secondary" id="uploadBtn" title="Upload">
                         <i class="fas fa-upload"></i>
                     </button>
@@ -1323,6 +1387,15 @@
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
+                <!-- Selection bar -->
+                <div class="selection-bar" id="selectionBar">
+                    <div class="selection-info">
+                        <span class="selection-count">Seleção (<span id="selectionCount">0</span>)</span>
+                        <button class="selection-clear" id="clearSelectionBtn" title="Cancelar seleção">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="path-bar">
                     <button class="btn btn-secondary" id="parentDirBtn" title="Voltar">
                         <i class="fas fa-level-up-alt"></i>
@@ -1331,6 +1404,10 @@
                     <button class="btn btn-secondary" id="goPathBtn" title="Ir">
                         <i class="fas fa-arrow-right"></i>
                     </button>
+                </div>
+                <div class="select-all-row" id="selectAllRow">
+                    <div class="file-checkbox" id="selectAllCheckbox"></div>
+                    <span>Selecionar tudo</span>
                 </div>
                 <div class="file-list" id="fileList">
                     <!-- Files will be listed here -->
