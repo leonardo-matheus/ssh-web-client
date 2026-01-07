@@ -269,8 +269,14 @@
             padding: 5px;
         }
 
+        body.fullscreen-mode .terminal-header,
         body.fullscreen-mode .status-bar {
-            padding: 5px 15px;
+            display: none !important;
+        }
+
+        body.fullscreen-mode #terminal {
+            padding: 0;
+            border-radius: 0;
         }
 
         /* SFTP Panel */

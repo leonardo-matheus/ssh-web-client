@@ -506,6 +506,7 @@ function toggleFullscreen() {
     if (document.body.classList.contains('fullscreen-mode')) {
         icon.className = 'fas fa-compress';
         fullscreenBtn.title = 'Sair da Tela Cheia';
+        showToast('Pressione ESC para sair da tela cheia', 'info');
     } else {
         icon.className = 'fas fa-expand';
         fullscreenBtn.title = 'Tela Cheia';
@@ -540,7 +541,8 @@ function showToast(message, type = 'info') {
     toast.className = `toast ${type}`;
     toast.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i> ${message}`;
     toastContainer.appendChild(toast);
-    setTimeout(() => toast.remove(), 5000);
+    const duration = type === 'info' ? 2500 : 5000;
+    setTimeout(() => toast.remove(), duration);
 }
 
 function formatSize(bytes) {
