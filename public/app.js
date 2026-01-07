@@ -10,6 +10,64 @@ let isConnected = false;
 let currentPath = '/';
 let selectedFile = null;
 
+// LocalStorage key
+const STORAGE_KEY = 'ssh_credentials';
+
+// Load saved credentials on page load
+function loadSavedCredentials() {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+            const credentials = JSON.parse(saved);
+            document.getElementById('host').value = credentials.host || '';
+            document.getElementById('port').value = credentials.port || 22;
+            document.getElementById('username').value = credentials.username || '';
+            document.getElementById('password').value = credentials.password || '';
+            document.getElementById('privateKey').value = credentials.privateKey || '';
+            document.getElementById('passphrase').value = credentials.passphrase || '';
+            document.getElementById('rememberCredentials').checked = true;
+            
+            // Switch to correct auth tab if private key is saved
+            if (credentials.privateKey) {
+                document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.auth-content').forEach(c => c.classList.remove('active'));
+                document.querySelector('[data-tab="privateKey"]').classList.add('active');
+                document.getElementById('privateKeyAuth').classList.add('active');
+            }
+            
+            showToast('Credenciais carregadas', 'info');
+        }
+    } catch (e) {
+        console.error('Erro ao carregar credenciais:', e);
+    }
+}
+
+// Save credentials to localStorage
+function saveCredentials() {
+    const credentials = {
+        host: document.getElementById('host').value,
+        port: document.getElementById('port').value,
+        username: document.getElementById('username').value,
+        password: document.getElementById('password').value,
+        privateKey: document.getElementById('privateKey').value,
+        passphrase: document.getElementById('passphrase').value
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
+}
+
+// Clear saved credentials
+function clearSavedCredentials() {
+    localStorage.removeItem(STORAGE_KEY);
+    document.getElementById('host').value = '';
+    document.getElementById('port').value = '22';
+    document.getElementById('username').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('privateKey').value = '';
+    document.getElementById('passphrase').value = '';
+    document.getElementById('rememberCredentials').checked = false;
+    showToast('Credenciais removidas', 'success');
+}
+
 // DOM Elements
 const connectionPanel = document.getElementById('connectionPanel');
 const mainContent = document.getElementById('mainContent');
@@ -124,6 +182,11 @@ connectBtn.addEventListener('click', () => {
 
     connectBtn.disabled = true;
     connectBtn.innerHTML = '<span class="loading"></span> Conectando...';
+
+    // Save credentials if checkbox is checked
+    if (document.getElementById('rememberCredentials').checked) {
+        saveCredentials();
+    }
 
     initTerminal();
     socket.emit('ssh-connect', config);
@@ -461,3 +524,9 @@ document.addEventListener('keydown', (e) => {
         document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
     }
 });
+
+// Clear credentials button
+document.getElementById('clearCredentialsBtn').addEventListener('click', clearSavedCredentials);
+
+// Load saved credentials on page load
+document.addEventListener('DOMContentLoaded', loadSavedCredentials);
