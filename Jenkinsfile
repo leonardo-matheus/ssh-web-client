@@ -36,7 +36,23 @@ pipeline {
         stage('📦 Install Dependencies') {
             steps {
                 echo '📦 Instalando dependências...'
-                sh 'npm ci --omit=dev'
+                sh '''
+                    npm ci --omit=dev
+                    
+                    # Install sharp for icon generation
+                    npm install sharp --save-dev
+                '''
+            }
+        }
+        
+        stage('🎨 Generate Icons') {
+            steps {
+                echo '🎨 Gerando ícones PWA...'
+                sh '''
+                    if [ -f scripts/generate-icons.js ]; then
+                        node scripts/generate-icons.js || echo "Icon generation skipped"
+                    fi
+                '''
             }
         }
         

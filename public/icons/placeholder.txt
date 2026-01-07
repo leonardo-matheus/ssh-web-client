@@ -1,0 +1,27 @@
+Para gerar os ícones PNG, você tem duas opções:
+
+OPÇÃO 1 - Usando o script (requer sharp):
+  npm install sharp
+  node scripts/generate-icons.js
+
+OPÇÃO 2 - Gerar manualmente:
+  1. Abra o arquivo icon.svg no navegador
+  2. Use um conversor online como:
+     - https://svgtopng.com/
+     - https://cloudconvert.com/svg-to-png
+  3. Gere os seguintes tamanhos:
+     - icon-72.png (72x72)
+     - icon-96.png (96x96)
+     - icon-128.png (128x128)
+     - icon-144.png (144x144)
+     - icon-152.png (152x152)
+     - icon-192.png (192x192)
+     - icon-384.png (384x384)
+     - icon-512.png (512x512)
+     - screenshot-wide.png (1280x720)
+     - screenshot-mobile.png (720x1280)
+
+OPÇÃO 3 - Rodar na VPS:
+  cd /var/www/ssh-web-client
+  npm install sharp --save-dev
+  node scripts/generate-icons.js
