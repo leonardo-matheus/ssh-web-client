@@ -28,8 +28,35 @@ app.get('/ssh', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Armazenar conexões SFTP ativas
-const sftpConnections = new Map();
+// Armazenar conexões SSH e sessões SFTP ativas
+const sshConnections = new Map();
+const sftpSessions = new Map();
+
+// Helper para obter sessão SFTP reutilizável
+function getSftpSession(socketId, callback) {
+  const client = sshConnections.get(socketId);
+  if (!client) {
+    callback(new Error('Não conectado'), null);
+    return;
+  }
+
+  // Reutilizar sessão existente
+  const existingSession = sftpSessions.get(socketId);
+  if (existingSession) {
+    callback(null, existingSession);
+    return;
+  }
+
+  // Criar nova sessão
+  client.sftp((err, sftp) => {
+    if (err) {
+      callback(err, null);
+      return;
+    }
+    sftpSessions.set(socketId, sftp);
+    callback(null, sftp);
+  });
+}
 
 // Socket.io para terminal SSH
 io.on('connection', (socket) => {
@@ -72,7 +99,7 @@ io.on('connection', (socket) => {
       socket.emit('ssh-ready');
       
       // Armazenar cliente para SFTP
-      sftpConnections.set(socket.id, sshClient);
+      sshConnections.set(socket.id, sshClient);
 
       sshClient.shell({ term: 'xterm-256color', cols: 80, rows: 24 }, (err, shellStream) => {
         if (err) {
@@ -104,7 +131,8 @@ io.on('connection', (socket) => {
 
     sshClient.on('close', () => {
       socket.emit('ssh-close');
-      sftpConnections.delete(socket.id);
+      sftpSessions.delete(socket.id);
+      sshConnections.delete(socket.id);
     });
 
     sshClient.connect(connectionConfig);
@@ -124,13 +152,7 @@ io.on('connection', (socket) => {
 
   // SFTP Operations
   socket.on('sftp-list', (remotePath) => {
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         socket.emit('sftp-error', err.message);
         return;
@@ -156,13 +178,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sftp-mkdir', (remotePath) => {
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         socket.emit('sftp-error', err.message);
         return;
@@ -180,13 +196,7 @@ io.on('connection', (socket) => {
 
   // Create empty file
   socket.on('sftp-create-file', (remotePath) => {
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         socket.emit('sftp-error', err.message);
         return;
@@ -203,13 +213,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sftp-delete', ({ path: remotePath, isDirectory }) => {
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         socket.emit('sftp-error', err.message);
         return;
@@ -227,13 +231,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sftp-download', (remotePath) => {
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         socket.emit('sftp-error', err.message);
         return;
@@ -251,13 +249,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sftp-upload', ({ remotePath, fileName, data }) => {
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         socket.emit('sftp-error', err.message);
         return;
@@ -279,16 +271,8 @@ io.on('connection', (socket) => {
   // Read file content for editor
   socket.on('sftp-read-file', (remotePath, callback) => {
     console.log('=== Reading file:', remotePath);
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      console.log('Error: Not connected');
-      const error = 'Não conectado';
-      socket.emit('sftp-file-error', error);
-      if (callback) callback({ error });
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         console.error('SFTP session error:', err.message);
         socket.emit('sftp-file-error', err.message);
@@ -296,7 +280,7 @@ io.on('connection', (socket) => {
         return;
       }
 
-      console.log('SFTP session opened, reading file...');
+      console.log('SFTP session ready, reading file...');
       
       sftp.readFile(remotePath, 'utf8', (err, content) => {
         if (err) {
@@ -316,13 +300,8 @@ io.on('connection', (socket) => {
   // Write file content from editor
   socket.on('sftp-write-file', ({ path: remotePath, content }) => {
     console.log('Writing file:', remotePath);
-    const client = sftpConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-save-error', 'Não conectado');
-      return;
-    }
-
-    client.sftp((err, sftp) => {
+    
+    getSftpSession(socket.id, (err, sftp) => {
       if (err) {
         console.error('SFTP error:', err.message);
         socket.emit('sftp-save-error', err.message);
@@ -346,7 +325,8 @@ io.on('connection', (socket) => {
     if (sshClient) {
       sshClient.end();
     }
-    sftpConnections.delete(socket.id);
+    sftpSessions.delete(socket.id);
+    sshConnections.delete(socket.id);
   });
 });
 
