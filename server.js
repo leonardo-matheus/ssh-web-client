@@ -32,7 +32,7 @@ app.get('/ssh', (req, res) => {
 const sshConnections = new Map();
 const sftpSessions = new Map();
 
-// Helper para obter sessão SFTP reutilizável
+// Helper para obter sessão SFTP - sempre cria nova para evitar problemas
 function getSftpSession(socketId, callback) {
   const client = sshConnections.get(socketId);
   if (!client) {
@@ -40,27 +40,14 @@ function getSftpSession(socketId, callback) {
     return;
   }
 
-  // Reutilizar sessão existente
-  const existingSession = sftpSessions.get(socketId);
-  if (existingSession) {
-    // Verificar se ainda está válida
-    try {
-      callback(null, existingSession);
-    } catch (e) {
-      // Sessão inválida, criar nova
-      sftpSessions.delete(socketId);
-      createNewSftpSession(client, socketId, callback);
-    }
-    return;
-  }
-
-  createNewSftpSession(client, socketId, callback);
-}
-
-function createNewSftpSession(client, socketId, callback) {
+  // Sempre criar nova sessão SFTP para evitar conflitos
+  console.log('Creating new SFTP session for:', socketId);
+  
   client.sftp((err, sftp) => {
     if (err) {
       console.error('Error creating SFTP session:', err.message);
+      // Tentar limpar e reconectar
+      sftpSessions.delete(socketId);
       callback(err, null);
       return;
     }
@@ -78,6 +65,10 @@ function execCommand(socketId, cmd, callback) {
   }
 
   console.log('Executing command:', cmd);
+  
+  // Limpar sessão SFTP antes de executar comando
+  // para evitar conflito de canais
+  sftpSessions.delete(socketId);
   
   client.exec(cmd, (err, stream) => {
     if (err) {
