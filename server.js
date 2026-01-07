@@ -372,11 +372,13 @@ io.on('connection', (socket) => {
   });
 
   // Copy or Move files
-  socket.on('sftp-copy-move', ({ operation, files, destination }) => {
+  socket.on('sftp-copy-move', ({ operation, files, destination }, callback) => {
     console.log(`${operation} files:`, files, 'to:', destination);
     const client = sshConnections.get(socket.id);
     if (!client) {
-      socket.emit('sftp-operation-error', 'Não conectado');
+      const error = 'Não conectado';
+      socket.emit('sftp-operation-error', error);
+      if (callback) callback({ error });
       return;
     }
 
@@ -384,23 +386,32 @@ io.on('connection', (socket) => {
     const fileList = files.map(f => `"${f}"`).join(' ');
     const cmd = `${command} ${fileList} "${destination}/"`;
     
+    console.log('Executing:', cmd);
+    
     client.exec(cmd, (err, stream) => {
       if (err) {
+        console.error('Exec error:', err.message);
         socket.emit('sftp-operation-error', err.message);
+        if (callback) callback({ error: err.message });
         return;
       }
       
       let errorOutput = '';
       stream.stderr.on('data', (data) => {
         errorOutput += data.toString();
+        console.log('stderr:', data.toString());
       });
       
       stream.on('close', (code) => {
+        console.log('Command exit code:', code);
         if (code === 0) {
           socket.emit('sftp-operation-success', 
             `${operation === 'copy' ? 'Copiado' : 'Movido'} com sucesso!`);
+          if (callback) callback({ success: true });
         } else {
-          socket.emit('sftp-operation-error', errorOutput || 'Erro na operação');
+          const error = errorOutput || 'Erro na operação';
+          socket.emit('sftp-operation-error', error);
+          if (callback) callback({ error });
         }
       });
     });

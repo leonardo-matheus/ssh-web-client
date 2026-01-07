@@ -755,82 +755,50 @@ function copyToClipboard(cut = false) {
     clipboard.files = selectedFiles.map(f => {
         return currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
     });
+    clipboard.sourcePath = currentPath;
     clipboard.operation = cut ? 'cut' : 'copy';
     
+    console.log('Clipboard:', clipboard);
     showToast(`${selectedFiles.length} item(ns) ${cut ? 'recortado(s)' : 'copiado(s)'}`, 'success');
 }
 
 function pasteFromClipboard() {
-    if (clipboard.files.length === 0) {
+    if (!clipboard.files || clipboard.files.length === 0) {
         showToast('Nada para colar', 'error');
         return;
     }
     
+    console.log('Pasting:', clipboard);
     const operation = clipboard.operation === 'cut' ? 'move' : 'copy';
     
-    socket.emit('sftp-copy-move', {
-        operation: operation,
-        files: clipboard.files,
-        destination: currentPath
-    });
-    
-    showToast(`Colando ${clipboard.files.length} item(ns)...`, 'info');
+    executeCopyMove(operation, clipboard.files, currentPath);
     
     // Limpar clipboard se foi recortar
     if (clipboard.operation === 'cut') {
-        clipboard = { files: [], operation: null };
+        clipboard = { files: [], operation: null, sourcePath: null };
     }
 }
 
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-    // Ignorar se estiver digitando em input/textarea
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
-        return;
-    }
+function executeCopyMove(operation, files, destination) {
+    console.log('Execute copy/move:', operation, files, 'to:', destination);
     
-    // Ignorar se modal estiver aberto
-    if (document.querySelector('.modal-overlay.active')) {
-        return;
-    }
-    
-    // Ctrl+A - Selecionar tudo
-    if ((e.ctrlKey || e.metaKey) && e.key === 'a' && isConnected) {
-        e.preventDefault();
-        selectAllFiles();
-    }
-    
-    // Ctrl+C - Copiar
-    if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedFiles.length > 0) {
-        e.preventDefault();
-        copyToClipboard(false);
-    }
-    
-    // Ctrl+X - Recortar
-    if ((e.ctrlKey || e.metaKey) && e.key === 'x' && selectedFiles.length > 0) {
-        e.preventDefault();
-        copyToClipboard(true);
-    }
-    
-    // Ctrl+V - Colar
-    if ((e.ctrlKey || e.metaKey) && e.key === 'v' && clipboard.files.length > 0) {
-        e.preventDefault();
-        pasteFromClipboard();
-    }
-    
-    // Delete - Excluir
-    if (e.key === 'Delete' && selectedFiles.length > 0) {
-        e.preventDefault();
-        deleteSelectedFiles();
-    }
-    
-    // Escape - Cancelar seleção
-    if (e.key === 'Escape') {
-        if (selectedFiles.length > 0) {
+    socket.emit('sftp-copy-move', {
+        operation: operation,
+        files: files,
+        destination: destination
+    }, (response) => {
+        console.log('Copy/move response:', response);
+        if (response && response.error) {
+            showToast('Erro: ' + response.error, 'error');
+        } else {
+            showToast(`${operation === 'copy' ? 'Copiado' : 'Movido'} com sucesso!`, 'success');
+            loadDirectory(currentPath);
             clearFileSelection();
         }
-    }
 });
+    
+    showToast(`${operation === 'copy' ? 'Copiando' : 'Movendo'} ${files.length} item(ns)...`, 'info');
+}
 
 // ========== CONTEXT MENU ==========
 
@@ -938,14 +906,8 @@ document.getElementById('confirmCopyMoveBtn').addEventListener('click', () => {
         return currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
     });
     
-    socket.emit('sftp-copy-move', {
-        operation: copyMoveOperation,
-        files: files,
-        destination: destPath
-    });
-    
     document.getElementById('copyMoveModal').classList.remove('active');
-    showToast(`${copyMoveOperation === 'copy' ? 'Copiando' : 'Movendo'}...`, 'info');
+    executeCopyMove(copyMoveOperation, files, destPath);
 });
 
 // ========== COMPRESS MODAL ==========
@@ -1475,5 +1437,83 @@ document.getElementById('clearCredentialsBtn').addEventListener('click', clearSa
 
 // Load saved credentials on page load
 document.addEventListener('DOMContentLoaded', loadSavedCredentials);
+
+// ========== GLOBAL KEYBOARD SHORTCUTS ==========
+document.addEventListener('keydown', (e) => {
+    // Ignorar se estiver digitando em input/textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    // Ignorar se modal de editor estiver aberto (Monaco tem seus próprios atalhos)
+    if (document.getElementById('editorModal').classList.contains('active')) {
+        return;
+    }
+    
+    // Ignorar se outro modal estiver aberto
+    const activeModal = document.querySelector('.modal-overlay.active:not(#editorModal)');
+    if (activeModal) {
+        if (e.key === 'Escape') {
+            activeModal.classList.remove('active');
+        }
+        return;
+    }
+    
+    // Apenas funciona se conectado e SFTP visível
+    if (!isConnected) return;
+    
+    // Ctrl+A - Selecionar tudo
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        selectAllFiles();
+        return;
+    }
+    
+    // Ctrl+C - Copiar
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        if (selectedFiles.length > 0) {
+            e.preventDefault();
+            copyToClipboard(false);
+        }
+        return;
+    }
+    
+    // Ctrl+X - Recortar
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') {
+        if (selectedFiles.length > 0) {
+            e.preventDefault();
+            copyToClipboard(true);
+        }
+        return;
+    }
+    
+    // Ctrl+V - Colar
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        if (clipboard.files && clipboard.files.length > 0) {
+            e.preventDefault();
+            pasteFromClipboard();
+        }
+        return;
+    }
+    
+    // Delete - Excluir
+    if (e.key === 'Delete') {
+        if (selectedFiles.length > 0 || selectedFile) {
+            e.preventDefault();
+            deleteSelectedFiles();
+        }
+        return;
+    }
+    
+    // Escape - Cancelar seleção ou sair do fullscreen
+    if (e.key === 'Escape') {
+        if (document.body.classList.contains('fullscreen-mode')) {
+            toggleFullscreen();
+        } else if (selectedFiles.length > 0) {
+            clearFileSelection();
+        }
+        return;
+    }
+});
 
 
