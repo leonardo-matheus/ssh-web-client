@@ -219,12 +219,50 @@
             display: none;
         }
 
-        .main-content.fullscreen {
-            grid-template-columns: 1fr;
+        /* Fullscreen mode */
+        body.fullscreen-mode {
+            padding: 0 !important;
         }
 
-        .main-content.fullscreen .sftp-panel {
-            display: none;
+        body.fullscreen-mode .container {
+            padding: 0;
+            max-width: 100%;
+        }
+
+        body.fullscreen-mode .header,
+        body.fullscreen-mode .connection-panel {
+            display: none !important;
+        }
+
+        body.fullscreen-mode .main-content.active {
+            grid-template-columns: 1fr !important;
+            gap: 0;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        body.fullscreen-mode .sftp-panel {
+            display: none !important;
+        }
+
+        body.fullscreen-mode .terminal-panel {
+            border-radius: 0;
+            border: none;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        body.fullscreen-mode .terminal-header {
+            border-radius: 0;
+            padding: 8px 15px;
+        }
+
+        body.fullscreen-mode #terminal {
+            padding: 5px;
+        }
+
+        body.fullscreen-mode .status-bar {
+            padding: 5px 15px;
         }
 
         /* SFTP Panel */

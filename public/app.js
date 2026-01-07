@@ -496,15 +496,41 @@ toggleSftpBtn.addEventListener('click', toggleSftp);
 hideSftpBtn.addEventListener('click', toggleSftp);
 
 // Fullscreen
-document.getElementById('fullscreenBtn').addEventListener('click', () => {
-    mainContent.classList.toggle('fullscreen');
-    const icon = document.querySelector('#fullscreenBtn i');
-    if (mainContent.classList.contains('fullscreen')) {
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+function toggleFullscreen() {
+    document.body.classList.toggle('fullscreen-mode');
+    const icon = fullscreenBtn.querySelector('i');
+    
+    if (document.body.classList.contains('fullscreen-mode')) {
         icon.className = 'fas fa-compress';
+        fullscreenBtn.title = 'Sair da Tela Cheia';
     } else {
         icon.className = 'fas fa-expand';
+        fullscreenBtn.title = 'Tela Cheia';
     }
-    setTimeout(() => fitAddon && fitAddon.fit(), 100);
+    
+    // Refit terminal after transition
+    setTimeout(() => {
+        if (fitAddon && term) {
+            fitAddon.fit();
+            if (isConnected) {
+                socket.emit('ssh-resize', {
+                    cols: term.cols,
+                    rows: term.rows
+                });
+            }
+        }
+    }, 150);
+}
+
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+// ESC to exit fullscreen
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.body.classList.contains('fullscreen-mode')) {
+        toggleFullscreen();
+    }
 });
 
 // Utility functions
@@ -570,7 +596,9 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+        // Close modals
         document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+        // Exit fullscreen handled in toggleFullscreen listener
     }
 });
 
