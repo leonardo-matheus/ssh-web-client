@@ -247,7 +247,17 @@ function openFileInEditor(filePath, fileName) {
     }, 30000); // 30 second timeout
 
     // Request file content immediately
-    console.log('Requesting file content...');
+    console.log('Requesting file content for:', filePath);
+    console.log('Socket connected:', socket.connected);
+    console.log('Socket id:', socket.id);
+    
+    if (!socket.connected) {
+        showToast('Socket desconectado. Reconectando...', 'error');
+        showEditorLoading(false);
+        closeEditor();
+        return;
+    }
+    
     socket.emit('sftp-read-file', filePath);
 
     // Initialize Monaco

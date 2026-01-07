@@ -38,6 +38,11 @@ io.on('connection', (socket) => {
   let sshClient = null;
   let stream = null;
 
+  // Debug: log all incoming events
+  socket.onAny((eventName, ...args) => {
+    console.log('Event received:', eventName);
+  });
+
   socket.on('ssh-connect', (config) => {
     sshClient = new Client();
     
