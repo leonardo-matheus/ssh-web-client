@@ -560,36 +560,44 @@ document.addEventListener('DOMContentLoaded', loadSavedCredentials);
 window.deferredPromptGlobal = null;
 
 window.addEventListener('beforeinstallprompt', (e) => {
+    console.log('beforeinstallprompt fired');
     e.preventDefault();
     window.deferredPromptGlobal = e;
-    // Show install button in header
+    
+    // Update install button
     if (installAppBtn) {
-        installAppBtn.style.display = 'inline-flex';
+        installAppBtn.innerHTML = '<i class="fas fa-download"></i> Instalar App';
+        installAppBtn.onclick = async () => {
+            if (!window.deferredPromptGlobal) {
+                showToast('Clique nos 3 pontos do navegador > Instalar', 'info');
+                return;
+            }
+            
+            window.deferredPromptGlobal.prompt();
+            const { outcome } = await window.deferredPromptGlobal.userChoice;
+            
+            if (outcome === 'accepted') {
+                showToast('App instalado com sucesso!', 'success');
+            }
+            
+            window.deferredPromptGlobal = null;
+        };
     }
 });
 
-if (installAppBtn) {
-    installAppBtn.addEventListener('click', async () => {
-        if (!window.deferredPromptGlobal) {
-            showToast('App já instalado ou não disponível', 'info');
-            return;
-        }
-        
-        window.deferredPromptGlobal.prompt();
-        const { outcome } = await window.deferredPromptGlobal.userChoice;
-        
-        if (outcome === 'accepted') {
-            showToast('App instalado com sucesso!', 'success');
-        }
-        
-        window.deferredPromptGlobal = null;
-        installAppBtn.style.display = 'none';
-    });
-}
-
 window.addEventListener('appinstalled', () => {
+    console.log('PWA installed');
+    showToast('App instalado com sucesso!', 'success');
     if (installAppBtn) {
         installAppBtn.style.display = 'none';
     }
     window.deferredPromptGlobal = null;
 });
+
+// Check if already installed
+if (window.matchMedia('(display-mode: standalone)').matches ||
+    window.matchMedia('(display-mode: fullscreen)').matches) {
+    if (installAppBtn) {
+        installAppBtn.style.display = 'none';
+    }
+}
