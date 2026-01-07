@@ -877,7 +877,7 @@
             <h1><i class="fas fa-terminal"></i> SSH Web Client</h1>
             <p>Conexão SSH e SFTP diretamente do seu navegador</p>
             <div class="header-buttons">
-                <button class="install-btn" id="installAppBtn">
+                <button class="install-btn mobile-only" id="installAppBtn" style="display: none;">
                     <i class="fas fa-download"></i> Instalar App
                 </button>
                 <a href="https://github.com/leonardo-matheus" target="_blank" class="github-btn">
@@ -1072,37 +1072,7 @@
             });
         }
 
-        // Hide install button if already installed or not supported
-        function checkPWAInstalled() {
-            const installBtn = document.getElementById('installAppBtn');
-            if (!installBtn) return;
 
-            // Check if running as installed PWA
-            const isStandalone = window.matchMedia('(display-mode: standalone)').matches 
-                || window.matchMedia('(display-mode: fullscreen)').matches
-                || window.navigator.standalone === true;
-
-            if (isStandalone) {
-                installBtn.style.display = 'none';
-                return;
-            }
-
-            // Check if browser supports installation
-            const isInstallable = 'BeforeInstallPromptEvent' in window 
-                || (navigator.userAgent.includes('Chrome') && !navigator.userAgent.includes('Edge'));
-
-            if (!isInstallable) {
-                // Show manual instructions for unsupported browsers
-                installBtn.innerHTML = '<i class="fas fa-info-circle"></i> Como instalar';
-                installBtn.onclick = () => {
-                    alert('Para instalar:\n\n' +
-                        'Chrome/Edge: Clique nos 3 pontos (⋮) > "Instalar SSH Web Client"\n\n' +
-                        'Safari (iOS): Toque em Compartilhar > "Adicionar à Tela de Início"');
-                };
-            }
-        }
-
-        window.addEventListener('load', checkPWAInstalled);
     </script>
 </body>
 </html>

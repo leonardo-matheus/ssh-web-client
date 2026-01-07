@@ -556,48 +556,46 @@ document.getElementById('clearCredentialsBtn').addEventListener('click', clearSa
 // Load saved credentials on page load
 document.addEventListener('DOMContentLoaded', loadSavedCredentials);
 
-// PWA Install - expose deferredPrompt globally
+// PWA Install - mobile only
 window.deferredPromptGlobal = null;
 
+// Check if running as installed PWA
+const isInstalledPWA = () => {
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           window.matchMedia('(display-mode: fullscreen)').matches ||
+           window.navigator.standalone === true;
+};
+
 window.addEventListener('beforeinstallprompt', (e) => {
-    console.log('beforeinstallprompt fired');
     e.preventDefault();
     window.deferredPromptGlobal = e;
     
-    // Update install button
-    if (installAppBtn) {
-        installAppBtn.innerHTML = '<i class="fas fa-download"></i> Instalar App';
-        installAppBtn.onclick = async () => {
-            if (!window.deferredPromptGlobal) {
-                showToast('Clique nos 3 pontos do navegador > Instalar', 'info');
-                return;
-            }
-            
-            window.deferredPromptGlobal.prompt();
-            const { outcome } = await window.deferredPromptGlobal.userChoice;
-            
-            if (outcome === 'accepted') {
-                showToast('App instalado com sucesso!', 'success');
-            }
-            
-            window.deferredPromptGlobal = null;
-        };
+    // Show install button only on mobile and if not installed
+    if (installAppBtn && isMobile() && !isInstalledPWA()) {
+        installAppBtn.style.display = 'inline-flex';
     }
 });
 
+if (installAppBtn) {
+    installAppBtn.addEventListener('click', async () => {
+        if (!window.deferredPromptGlobal) return;
+        
+        window.deferredPromptGlobal.prompt();
+        const { outcome } = await window.deferredPromptGlobal.userChoice;
+        
+        if (outcome === 'accepted') {
+            showToast('App instalado com sucesso!', 'success');
+        }
+        
+        window.deferredPromptGlobal = null;
+        installAppBtn.style.display = 'none';
+    });
+}
+
 window.addEventListener('appinstalled', () => {
-    console.log('PWA installed');
     showToast('App instalado com sucesso!', 'success');
     if (installAppBtn) {
         installAppBtn.style.display = 'none';
     }
     window.deferredPromptGlobal = null;
 });
-
-// Check if already installed
-if (window.matchMedia('(display-mode: standalone)').matches ||
-    window.matchMedia('(display-mode: fullscreen)').matches) {
-    if (installAppBtn) {
-        installAppBtn.style.display = 'none';
-    }
-}
