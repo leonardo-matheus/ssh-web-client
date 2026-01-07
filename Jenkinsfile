@@ -36,7 +36,7 @@ pipeline {
         stage('📦 Install Dependencies') {
             steps {
                 echo '📦 Instalando dependências...'
-                sh 'npm ci --production'
+                sh 'npm ci --omit=dev'
             }
         }
         
