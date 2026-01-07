@@ -320,6 +320,170 @@ io.on('connection', (socket) => {
     });
   });
 
+  // Copy or Move files
+  socket.on('sftp-copy-move', ({ operation, files, destination }) => {
+    console.log(`${operation} files:`, files, 'to:', destination);
+    const client = sshConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-operation-error', 'Não conectado');
+      return;
+    }
+
+    const command = operation === 'copy' ? 'cp -r' : 'mv';
+    const fileList = files.map(f => `"${f}"`).join(' ');
+    const cmd = `${command} ${fileList} "${destination}/"`;
+    
+    client.exec(cmd, (err, stream) => {
+      if (err) {
+        socket.emit('sftp-operation-error', err.message);
+        return;
+      }
+      
+      let errorOutput = '';
+      stream.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      stream.on('close', (code) => {
+        if (code === 0) {
+          socket.emit('sftp-operation-success', 
+            `${operation === 'copy' ? 'Copiado' : 'Movido'} com sucesso!`);
+        } else {
+          socket.emit('sftp-operation-error', errorOutput || 'Erro na operação');
+        }
+      });
+    });
+  });
+
+  // Compress files to ZIP
+  socket.on('sftp-compress', ({ files, zipPath }) => {
+    console.log('Compressing files:', files, 'to:', zipPath);
+    const client = sshConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-operation-error', 'Não conectado');
+      return;
+    }
+
+    // Usar zip para compactar
+    const fileList = files.map(f => `"${f}"`).join(' ');
+    const cmd = `zip -r "${zipPath}" ${fileList}`;
+    
+    client.exec(cmd, (err, stream) => {
+      if (err) {
+        socket.emit('sftp-operation-error', err.message);
+        return;
+      }
+      
+      let errorOutput = '';
+      stream.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      stream.on('close', (code) => {
+        if (code === 0) {
+          socket.emit('sftp-operation-success', 'Arquivos compactados com sucesso!');
+        } else {
+          socket.emit('sftp-operation-error', errorOutput || 'Erro ao compactar');
+        }
+      });
+    });
+  });
+
+  // Extract archive
+  socket.on('sftp-extract', ({ file, destination }) => {
+    console.log('Extracting:', file, 'to:', destination);
+    const client = sshConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-operation-error', 'Não conectado');
+      return;
+    }
+
+    let cmd;
+    if (file.endsWith('.zip')) {
+      cmd = `unzip -o "${file}" -d "${destination}"`;
+    } else if (file.endsWith('.tar.gz') || file.endsWith('.tgz')) {
+      cmd = `tar -xzf "${file}" -C "${destination}"`;
+    } else if (file.endsWith('.tar')) {
+      cmd = `tar -xf "${file}" -C "${destination}"`;
+    } else if (file.endsWith('.gz')) {
+      cmd = `gunzip -k "${file}"`;
+    } else {
+      socket.emit('sftp-operation-error', 'Formato não suportado');
+      return;
+    }
+    
+    client.exec(cmd, (err, stream) => {
+      if (err) {
+        socket.emit('sftp-operation-error', err.message);
+        return;
+      }
+      
+      let errorOutput = '';
+      stream.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      stream.on('close', (code) => {
+        if (code === 0) {
+          socket.emit('sftp-operation-success', 'Arquivos extraídos com sucesso!');
+        } else {
+          socket.emit('sftp-operation-error', errorOutput || 'Erro ao extrair');
+        }
+      });
+    });
+  });
+
+  // Download multiple files (compress and send)
+  socket.on('sftp-download-multiple', ({ files, currentPath }) => {
+    console.log('Download multiple:', files);
+    const client = sshConnections.get(socket.id);
+    if (!client) {
+      socket.emit('sftp-operation-error', 'Não conectado');
+      return;
+    }
+
+    const tmpZip = `/tmp/download_${Date.now()}.zip`;
+    const fileList = files.map(f => `"${f}"`).join(' ');
+    const cmd = `cd "${currentPath}" && zip -r "${tmpZip}" ${files.map(f => `"${path.basename(f)}"`).join(' ')}`;
+    
+    client.exec(cmd, (err, stream) => {
+      if (err) {
+        socket.emit('sftp-operation-error', err.message);
+        return;
+      }
+      
+      stream.on('close', (code) => {
+        if (code !== 0) {
+          socket.emit('sftp-operation-error', 'Erro ao criar arquivo ZIP');
+          return;
+        }
+        
+        // Ler o arquivo ZIP criado
+        getSftpSession(socket.id, (err, sftp) => {
+          if (err) {
+            socket.emit('sftp-operation-error', err.message);
+            return;
+          }
+          
+          sftp.readFile(tmpZip, (err, data) => {
+            if (err) {
+              socket.emit('sftp-operation-error', err.message);
+              return;
+            }
+            
+            socket.emit('sftp-download-ready', {
+              fileName: 'download.zip',
+              data: data.toString('base64')
+            });
+            
+            // Limpar arquivo temporário
+            client.exec(`rm "${tmpZip}"`, () => {});
+          });
+        });
+      });
+    });
+  });
+
   socket.on('disconnect', () => {
     console.log('Cliente desconectado:', socket.id);
     if (sshClient) {

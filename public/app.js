@@ -17,6 +17,9 @@ let fitAddon = null;
 let isConnected = false;
 let currentPath = '/';
 let selectedFile = null;
+let selectedFiles = []; // Array para múltipla seleção
+let lastSelectedIndex = -1; // Para seleção com Shift
+let copyMoveOperation = null; // 'copy' ou 'move'
 
 // LocalStorage key
 const STORAGE_KEY = 'ssh_credentials';
@@ -538,11 +541,12 @@ socket.on('sftp-list', (data) => {
 
     fileList.innerHTML = '';
 
-    files.forEach(file => {
+    files.forEach((file, index) => {
         const item = document.createElement('div');
         item.className = 'file-item';
         item.dataset.name = file.name;
         item.dataset.type = file.type;
+        item.dataset.index = index;
 
         const icon = file.type === 'directory' 
             ? '<i class="fas fa-folder folder-icon"></i>'
@@ -552,6 +556,7 @@ socket.on('sftp-list', (data) => {
         const date = new Date(file.modified).toLocaleString('pt-BR');
 
         item.innerHTML = `
+            <div class="file-checkbox" data-index="${index}"></div>
             ${icon}
             <div class="file-info">
                 <div class="file-name">${file.name}</div>
@@ -559,10 +564,25 @@ socket.on('sftp-list', (data) => {
             </div>
         `;
 
+        // Checkbox click
+        const checkbox = item.querySelector('.file-checkbox');
+        checkbox.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleFileSelection(file, index, e.shiftKey);
+        });
+
         item.addEventListener('click', (e) => {
-            document.querySelectorAll('.file-item').forEach(i => i.classList.remove('selected'));
-            item.classList.add('selected');
-            selectedFile = file;
+            if (e.target.classList.contains('file-checkbox')) return;
+            
+            if (e.ctrlKey || e.metaKey) {
+                toggleFileSelection(file, index, false);
+            } else if (e.shiftKey) {
+                toggleFileSelection(file, index, true);
+            } else {
+                // Seleção simples
+                clearFileSelection();
+                selectFile(file, index);
+            }
         });
 
         item.addEventListener('dblclick', () => {
@@ -578,12 +598,339 @@ socket.on('sftp-list', (data) => {
             }
         });
 
+        // Context menu (right click)
+        item.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            // Se o item não está selecionado, seleciona ele
+            if (!selectedFiles.find(f => f.name === file.name)) {
+                clearFileSelection();
+                selectFile(file, index);
+            }
+            showContextMenu(e.clientX, e.clientY);
+        });
+
         fileList.appendChild(item);
     });
+
+    // Armazenar files para referência
+    fileList.dataset.files = JSON.stringify(files);
 });
 
 socket.on('sftp-error', (error) => {
     showToast('SFTP Erro: ' + error, 'error');
+});
+
+// ========== FILE SELECTION ==========
+
+function selectFile(file, index) {
+    selectedFiles.push(file);
+    selectedFile = file;
+    lastSelectedIndex = index;
+    updateFileSelectionUI();
+}
+
+function toggleFileSelection(file, index, useShift) {
+    const fileList = document.getElementById('fileList');
+    const files = JSON.parse(fileList.dataset.files || '[]');
+    
+    if (useShift && lastSelectedIndex !== -1) {
+        // Seleção em massa com Shift
+        const start = Math.min(lastSelectedIndex, index);
+        const end = Math.max(lastSelectedIndex, index);
+        
+        for (let i = start; i <= end; i++) {
+            const f = files[i];
+            if (!selectedFiles.find(sf => sf.name === f.name)) {
+                selectedFiles.push(f);
+            }
+        }
+    } else {
+        // Toggle individual
+        const existingIndex = selectedFiles.findIndex(f => f.name === file.name);
+        if (existingIndex > -1) {
+            selectedFiles.splice(existingIndex, 1);
+        } else {
+            selectedFiles.push(file);
+        }
+        lastSelectedIndex = index;
+    }
+    
+    selectedFile = selectedFiles.length > 0 ? selectedFiles[selectedFiles.length - 1] : null;
+    updateFileSelectionUI();
+}
+
+function clearFileSelection() {
+    selectedFiles = [];
+    selectedFile = null;
+    lastSelectedIndex = -1;
+    updateFileSelectionUI();
+}
+
+function updateFileSelectionUI() {
+    const fileList = document.getElementById('fileList');
+    const items = fileList.querySelectorAll('.file-item');
+    
+    // Toggle selection mode class
+    if (selectedFiles.length > 0) {
+        fileList.classList.add('selection-mode');
+    } else {
+        fileList.classList.remove('selection-mode');
+    }
+    
+    items.forEach(item => {
+        const fileName = item.dataset.name;
+        const checkbox = item.querySelector('.file-checkbox');
+        const isSelected = selectedFiles.find(f => f.name === fileName);
+        
+        if (isSelected) {
+            item.classList.add('selected');
+            checkbox.classList.add('checked');
+        } else {
+            item.classList.remove('selected');
+            checkbox.classList.remove('checked');
+        }
+    });
+}
+
+// ========== CONTEXT MENU ==========
+
+const contextMenu = document.getElementById('contextMenu');
+
+function showContextMenu(x, y) {
+    // Ajustar posição para não sair da tela
+    const menuWidth = 180;
+    const menuHeight = 250;
+    
+    if (x + menuWidth > window.innerWidth) {
+        x = window.innerWidth - menuWidth - 10;
+    }
+    if (y + menuHeight > window.innerHeight) {
+        y = window.innerHeight - menuHeight - 10;
+    }
+    
+    contextMenu.style.left = x + 'px';
+    contextMenu.style.top = y + 'px';
+    contextMenu.classList.add('show');
+    
+    // Habilitar/desabilitar opções baseado na seleção
+    const hasZipSelected = selectedFiles.some(f => 
+        f.name.endsWith('.zip') || f.name.endsWith('.tar') || 
+        f.name.endsWith('.gz') || f.name.endsWith('.tar.gz')
+    );
+    document.getElementById('ctxExtract').style.display = hasZipSelected ? 'flex' : 'none';
+}
+
+function hideContextMenu() {
+    contextMenu.classList.remove('show');
+}
+
+// Fechar context menu ao clicar fora
+document.addEventListener('click', (e) => {
+    if (!contextMenu.contains(e.target)) {
+        hideContextMenu();
+    }
+});
+
+// Context menu actions
+document.getElementById('ctxCopy').addEventListener('click', () => {
+    hideContextMenu();
+    openCopyMoveModal('copy');
+});
+
+document.getElementById('ctxMove').addEventListener('click', () => {
+    hideContextMenu();
+    openCopyMoveModal('move');
+});
+
+document.getElementById('ctxCompress').addEventListener('click', () => {
+    hideContextMenu();
+    openCompressModal();
+});
+
+document.getElementById('ctxExtract').addEventListener('click', () => {
+    hideContextMenu();
+    extractFiles();
+});
+
+document.getElementById('ctxDownload').addEventListener('click', () => {
+    hideContextMenu();
+    downloadSelectedFiles();
+});
+
+document.getElementById('ctxDelete').addEventListener('click', () => {
+    hideContextMenu();
+    deleteSelectedFiles();
+});
+
+// ========== COPY/MOVE MODAL ==========
+
+function openCopyMoveModal(operation) {
+    copyMoveOperation = operation;
+    const modal = document.getElementById('copyMoveModal');
+    const title = document.getElementById('copyMoveTitle');
+    const info = document.getElementById('copyMoveInfo');
+    const pathInput = document.getElementById('copyMovePath');
+    
+    if (operation === 'copy') {
+        title.innerHTML = '<i class="fas fa-copy"></i> Copiar para';
+    } else {
+        title.innerHTML = '<i class="fas fa-arrows-alt"></i> Mover para';
+    }
+    
+    info.textContent = `${selectedFiles.length} item(ns) selecionado(s)`;
+    pathInput.value = currentPath;
+    modal.classList.add('active');
+    pathInput.focus();
+}
+
+document.getElementById('cancelCopyMoveBtn').addEventListener('click', () => {
+    document.getElementById('copyMoveModal').classList.remove('active');
+});
+
+document.getElementById('confirmCopyMoveBtn').addEventListener('click', () => {
+    const destPath = document.getElementById('copyMovePath').value.trim();
+    if (!destPath) {
+        showToast('Informe o caminho de destino', 'error');
+        return;
+    }
+    
+    const files = selectedFiles.map(f => {
+        return currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
+    });
+    
+    socket.emit('sftp-copy-move', {
+        operation: copyMoveOperation,
+        files: files,
+        destination: destPath
+    });
+    
+    document.getElementById('copyMoveModal').classList.remove('active');
+    showToast(`${copyMoveOperation === 'copy' ? 'Copiando' : 'Movendo'}...`, 'info');
+});
+
+// ========== COMPRESS MODAL ==========
+
+function openCompressModal() {
+    const modal = document.getElementById('compressModal');
+    const info = document.getElementById('compressInfo');
+    const nameInput = document.getElementById('zipFileName');
+    
+    info.textContent = `${selectedFiles.length} item(ns) selecionado(s)`;
+    nameInput.value = 'arquivos.zip';
+    modal.classList.add('active');
+    nameInput.focus();
+    nameInput.select();
+}
+
+document.getElementById('cancelCompressBtn').addEventListener('click', () => {
+    document.getElementById('compressModal').classList.remove('active');
+});
+
+document.getElementById('confirmCompressBtn').addEventListener('click', () => {
+    const zipName = document.getElementById('zipFileName').value.trim();
+    if (!zipName) {
+        showToast('Informe o nome do arquivo ZIP', 'error');
+        return;
+    }
+    
+    const files = selectedFiles.map(f => {
+        return currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
+    });
+    
+    const zipPath = currentPath === '/' ? '/' + zipName : currentPath + '/' + zipName;
+    
+    socket.emit('sftp-compress', {
+        files: files,
+        zipPath: zipPath
+    });
+    
+    document.getElementById('compressModal').classList.remove('active');
+    showToast('Compactando arquivos...', 'info');
+});
+
+// ========== EXTRACT ==========
+
+function extractFiles() {
+    const zipFiles = selectedFiles.filter(f => 
+        f.name.endsWith('.zip') || f.name.endsWith('.tar') || 
+        f.name.endsWith('.gz') || f.name.endsWith('.tar.gz')
+    );
+    
+    if (zipFiles.length === 0) {
+        showToast('Selecione um arquivo compactado', 'error');
+        return;
+    }
+    
+    zipFiles.forEach(f => {
+        const filePath = currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
+        socket.emit('sftp-extract', {
+            file: filePath,
+            destination: currentPath
+        });
+    });
+    
+    showToast('Descompactando...', 'info');
+}
+
+// ========== DOWNLOAD MULTIPLE ==========
+
+function downloadSelectedFiles() {
+    if (selectedFiles.length === 0) {
+        showToast('Selecione arquivos para baixar', 'error');
+        return;
+    }
+    
+    if (selectedFiles.length === 1 && selectedFiles[0].type !== 'directory') {
+        // Download simples
+        const path = currentPath === '/' 
+            ? '/' + selectedFiles[0].name 
+            : currentPath + '/' + selectedFiles[0].name;
+        socket.emit('sftp-download', path);
+    } else {
+        // Múltiplos arquivos - compactar e baixar
+        const files = selectedFiles.map(f => {
+            return currentPath === '/' ? '/' + f.name : currentPath + '/' + f.name;
+        });
+        
+        socket.emit('sftp-download-multiple', { files, currentPath });
+        showToast('Preparando download...', 'info');
+    }
+}
+
+// ========== DELETE MULTIPLE ==========
+
+function deleteSelectedFiles() {
+    if (selectedFiles.length === 0) {
+        showToast('Selecione arquivos para excluir', 'error');
+        return;
+    }
+    
+    document.getElementById('deleteMessage').textContent = 
+        `Tem certeza que deseja excluir ${selectedFiles.length} item(ns)?`;
+    document.getElementById('deleteModal').classList.add('active');
+}
+
+// ========== SOCKET EVENTS ==========
+
+socket.on('sftp-operation-success', (message) => {
+    showToast(message, 'success');
+    loadDirectory(currentPath);
+    clearFileSelection();
+});
+
+socket.on('sftp-operation-error', (error) => {
+    showToast('Erro: ' + error, 'error');
+});
+
+socket.on('sftp-download-ready', ({ fileName, data }) => {
+    const blob = new Blob([Uint8Array.from(atob(data), c => c.charCodeAt(0))]);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Download pronto: ' + fileName, 'success');
 });
 
 socket.on('sftp-success', (message) => {
@@ -761,7 +1108,19 @@ document.getElementById('cancelDeleteBtn').addEventListener('click', () => {
 });
 
 document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
-    if (selectedFile) {
+    if (selectedFiles.length > 0) {
+        selectedFiles.forEach(file => {
+            const path = currentPath === '/' 
+                ? '/' + file.name 
+                : currentPath + '/' + file.name;
+            socket.emit('sftp-delete', { 
+                path, 
+                isDirectory: file.type === 'directory' 
+            });
+        });
+        deleteModal.classList.remove('active');
+        clearFileSelection();
+    } else if (selectedFile) {
         const path = currentPath === '/' 
             ? '/' + selectedFile.name 
             : currentPath + '/' + selectedFile.name;
