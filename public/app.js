@@ -145,18 +145,31 @@ function initTerminal() {
         }
     });
 
-    // Handle resize
-    window.addEventListener('resize', () => {
-        if (fitAddon) {
-            fitAddon.fit();
-            if (isConnected) {
-                socket.emit('ssh-resize', {
-                    cols: term.cols,
-                    rows: term.rows
-                });
+    // Handle resize with debounce
+    let resizeTimeout;
+    const handleResize = () => {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(() => {
+            if (fitAddon && term) {
+                fitAddon.fit();
+                if (isConnected) {
+                    socket.emit('ssh-resize', {
+                        cols: term.cols,
+                        rows: term.rows
+                    });
+                }
             }
-        }
-    });
+        }, 100);
+    };
+
+    window.addEventListener('resize', handleResize);
+    
+    // Also observe terminal container size changes
+    const terminalContainer = document.getElementById('terminal');
+    if (window.ResizeObserver) {
+        const resizeObserver = new ResizeObserver(handleResize);
+        resizeObserver.observe(terminalContainer);
+    }
 }
 
 // Connect button handler
@@ -465,7 +478,18 @@ function toggleSftp() {
     } else {
         icon.className = 'fas fa-folder';
     }
-    setTimeout(() => fitAddon && fitAddon.fit(), 100);
+    // Refit terminal after animation
+    setTimeout(() => {
+        if (fitAddon && term) {
+            fitAddon.fit();
+            if (isConnected) {
+                socket.emit('ssh-resize', {
+                    cols: term.cols,
+                    rows: term.rows
+                });
+            }
+        }
+    }, 150);
 }
 
 toggleSftpBtn.addEventListener('click', toggleSftp);

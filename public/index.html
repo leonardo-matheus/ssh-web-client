@@ -34,13 +34,20 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
+            height: 100vh;
             color: #fff;
+            overflow: hidden;
         }
 
         .container {
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
+            height: 100vh;
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .header {
@@ -193,11 +200,23 @@
         .main-content {
             display: none;
             gap: 20px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
         }
 
         .main-content.active {
             display: grid;
             grid-template-columns: 350px 1fr;
+        }
+
+        /* Start with SFTP hidden */
+        .main-content.active:not(.sftp-visible) {
+            grid-template-columns: 1fr;
+        }
+
+        .main-content.active:not(.sftp-visible) .sftp-panel {
+            display: none;
         }
 
         .main-content.fullscreen {
@@ -224,9 +243,7 @@
             display: none;
         }
 
-        .main-content.sftp-hidden {
-            grid-template-columns: 1fr !important;
-        }
+
 
         .sftp-header {
             padding: 15px 20px;
@@ -335,6 +352,8 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            min-height: 0;
+            flex: 1;
         }
 
         .terminal-header {
@@ -360,7 +379,16 @@
         #terminal {
             flex: 1;
             padding: 10px;
-            min-height: 400px;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        #terminal .xterm {
+            height: 100%;
+        }
+
+        #terminal .xterm-viewport {
+            overflow-y: auto !important;
         }
 
         /* Status */
@@ -482,8 +510,8 @@
             }
         }
 
-        /* Mobile: SFTP toggle button highlight */
-        .sftp-visible #toggleSftpBtn {
+        /* SFTP toggle button highlight when visible */
+        .main-content.sftp-visible #toggleSftpBtn {
             background: linear-gradient(135deg, #00d4ff, #7b2cbf);
         }
 
@@ -636,22 +664,6 @@
                 font-size: 0.85rem;
             }
 
-            /* Mobile: start with SFTP hidden */
-            .main-content.active .sftp-panel {
-                display: none;
-            }
-
-            .main-content.active.sftp-visible .sftp-panel {
-                display: flex;
-            }
-
-            .main-content.active {
-                grid-template-columns: 1fr;
-            }
-
-            .main-content.active.sftp-visible {
-                grid-template-columns: 1fr;
-            }
         }
 
         @media (max-width: 480px) {
@@ -818,22 +830,14 @@
             box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
         }
 
-        /* Desktop/Mobile specific buttons */
+        /* Mobile only elements */
         .mobile-only {
             display: none !important;
-        }
-
-        .desktop-only {
-            display: inline-flex !important;
         }
 
         @media (max-width: 768px) {
             .mobile-only {
                 display: inline-flex !important;
-            }
-
-            .desktop-only {
-                display: none !important;
             }
         }
 
@@ -997,7 +1001,7 @@
                 <div class="terminal-header">
                     <h3><i class="fas fa-terminal"></i> Terminal SSH</h3>
                     <div class="terminal-actions">
-                        <button class="btn btn-secondary mobile-only" id="toggleSftpBtn" title="Arquivos">
+                        <button class="btn btn-secondary" id="toggleSftpBtn" title="Arquivos">
                             <i class="fas fa-folder"></i>
                         </button>
                         <button class="btn btn-secondary desktop-only" id="fullscreenBtn" title="Tela Cheia">
