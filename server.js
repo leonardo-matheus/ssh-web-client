@@ -43,18 +43,68 @@ function getSftpSession(socketId, callback) {
   // Reutilizar sessão existente
   const existingSession = sftpSessions.get(socketId);
   if (existingSession) {
-    callback(null, existingSession);
+    // Verificar se ainda está válida
+    try {
+      callback(null, existingSession);
+    } catch (e) {
+      // Sessão inválida, criar nova
+      sftpSessions.delete(socketId);
+      createNewSftpSession(client, socketId, callback);
+    }
     return;
   }
 
-  // Criar nova sessão
+  createNewSftpSession(client, socketId, callback);
+}
+
+function createNewSftpSession(client, socketId, callback) {
   client.sftp((err, sftp) => {
     if (err) {
+      console.error('Error creating SFTP session:', err.message);
       callback(err, null);
       return;
     }
     sftpSessions.set(socketId, sftp);
     callback(null, sftp);
+  });
+}
+
+// Helper para executar comandos SSH
+function execCommand(socketId, cmd, callback) {
+  const client = sshConnections.get(socketId);
+  if (!client) {
+    callback(new Error('Não conectado'), null);
+    return;
+  }
+
+  console.log('Executing command:', cmd);
+  
+  client.exec(cmd, (err, stream) => {
+    if (err) {
+      console.error('Exec error:', err.message);
+      callback(err, null);
+      return;
+    }
+    
+    let stdout = '';
+    let stderr = '';
+    
+    stream.on('data', (data) => {
+      stdout += data.toString();
+    });
+    
+    stream.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+    
+    stream.on('close', (code) => {
+      console.log('Command exit code:', code);
+      if (code === 0) {
+        callback(null, { stdout, stderr, code });
+      } else {
+        callback(new Error(stderr || 'Comando falhou'), { stdout, stderr, code });
+      }
+    });
   });
 }
 
@@ -277,38 +327,16 @@ io.on('connection', (socket) => {
   // Delete multiple files at once
   socket.on('sftp-delete-files', ({ paths }, callback) => {
     console.log('Deleting multiple files:', paths);
-    const client = sshConnections.get(socket.id);
-    if (!client) {
-      if (callback) callback({ error: 'Não conectado' });
-      return;
-    }
-
-    // Usar rm -rf para deletar todos os arquivos/pastas
+    
     const fileList = paths.map(p => `"${p}"`).join(' ');
     const cmd = `rm -rf ${fileList}`;
     
-    console.log('Executing:', cmd);
-    
-    client.exec(cmd, (err, stream) => {
+    execCommand(socket.id, cmd, (err, result) => {
       if (err) {
-        console.error('Exec error:', err.message);
         if (callback) callback({ error: err.message });
-        return;
+      } else {
+        if (callback) callback({ success: true });
       }
-      
-      let errorOutput = '';
-      stream.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      stream.on('close', (code) => {
-        console.log('Delete command exit code:', code);
-        if (code === 0) {
-          if (callback) callback({ success: true });
-        } else {
-          if (callback) callback({ error: errorOutput || 'Erro ao excluir' });
-        }
-      });
     });
   });
 
@@ -412,91 +440,44 @@ io.on('connection', (socket) => {
   // Copy or Move files
   socket.on('sftp-copy-move', ({ operation, files, destination }, callback) => {
     console.log(`${operation} files:`, files, 'to:', destination);
-    const client = sshConnections.get(socket.id);
-    if (!client) {
-      const error = 'Não conectado';
-      socket.emit('sftp-operation-error', error);
-      if (callback) callback({ error });
-      return;
-    }
 
     const command = operation === 'copy' ? 'cp -r' : 'mv';
     const fileList = files.map(f => `"${f}"`).join(' ');
-    const cmd = `${command} ${fileList} "${destination}/"`;
+    // Remover barra final duplicada
+    const destPath = destination.endsWith('/') ? destination.slice(0, -1) : destination;
+    const cmd = `${command} ${fileList} "${destPath}/"`;
     
-    console.log('Executing:', cmd);
-    
-    client.exec(cmd, (err, stream) => {
+    execCommand(socket.id, cmd, (err, result) => {
       if (err) {
-        console.error('Exec error:', err.message);
         socket.emit('sftp-operation-error', err.message);
         if (callback) callback({ error: err.message });
-        return;
+      } else {
+        socket.emit('sftp-operation-success', 
+          `${operation === 'copy' ? 'Copiado' : 'Movido'} com sucesso!`);
+        if (callback) callback({ success: true });
       }
-      
-      let errorOutput = '';
-      stream.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-        console.log('stderr:', data.toString());
-      });
-      
-      stream.on('close', (code) => {
-        console.log('Command exit code:', code);
-        if (code === 0) {
-          socket.emit('sftp-operation-success', 
-            `${operation === 'copy' ? 'Copiado' : 'Movido'} com sucesso!`);
-          if (callback) callback({ success: true });
-        } else {
-          const error = errorOutput || 'Erro na operação';
-          socket.emit('sftp-operation-error', error);
-          if (callback) callback({ error });
-        }
-      });
     });
   });
 
   // Compress files to ZIP
   socket.on('sftp-compress', ({ files, zipPath }) => {
     console.log('Compressing files:', files, 'to:', zipPath);
-    const client = sshConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-operation-error', 'Não conectado');
-      return;
-    }
-
-    // Usar zip para compactar
+    
     const fileList = files.map(f => `"${f}"`).join(' ');
     const cmd = `zip -r "${zipPath}" ${fileList}`;
     
-    client.exec(cmd, (err, stream) => {
+    execCommand(socket.id, cmd, (err, result) => {
       if (err) {
         socket.emit('sftp-operation-error', err.message);
-        return;
+      } else {
+        socket.emit('sftp-operation-success', 'Arquivos compactados com sucesso!');
       }
-      
-      let errorOutput = '';
-      stream.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      stream.on('close', (code) => {
-        if (code === 0) {
-          socket.emit('sftp-operation-success', 'Arquivos compactados com sucesso!');
-        } else {
-          socket.emit('sftp-operation-error', errorOutput || 'Erro ao compactar');
-        }
-      });
     });
   });
 
   // Extract archive
   socket.on('sftp-extract', ({ file, destination }) => {
     console.log('Extracting:', file, 'to:', destination);
-    const client = sshConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-operation-error', 'Não conectado');
-      return;
-    }
 
     let cmd;
     if (file.endsWith('.zip')) {
@@ -512,73 +493,49 @@ io.on('connection', (socket) => {
       return;
     }
     
-    client.exec(cmd, (err, stream) => {
+    execCommand(socket.id, cmd, (err, result) => {
       if (err) {
         socket.emit('sftp-operation-error', err.message);
-        return;
+      } else {
+        socket.emit('sftp-operation-success', 'Arquivos extraídos com sucesso!');
       }
-      
-      let errorOutput = '';
-      stream.stderr.on('data', (data) => {
-        errorOutput += data.toString();
-      });
-      
-      stream.on('close', (code) => {
-        if (code === 0) {
-          socket.emit('sftp-operation-success', 'Arquivos extraídos com sucesso!');
-        } else {
-          socket.emit('sftp-operation-error', errorOutput || 'Erro ao extrair');
-        }
-      });
     });
   });
 
   // Download multiple files (compress and send)
   socket.on('sftp-download-multiple', ({ files, currentPath }) => {
     console.log('Download multiple:', files);
-    const client = sshConnections.get(socket.id);
-    if (!client) {
-      socket.emit('sftp-operation-error', 'Não conectado');
-      return;
-    }
 
     const tmpZip = `/tmp/download_${Date.now()}.zip`;
-    const fileList = files.map(f => `"${f}"`).join(' ');
-    const cmd = `cd "${currentPath}" && zip -r "${tmpZip}" ${files.map(f => `"${path.basename(f)}"`).join(' ')}`;
+    const fileNames = files.map(f => `"${path.basename(f)}"`).join(' ');
+    const cmd = `cd "${currentPath}" && zip -r "${tmpZip}" ${fileNames}`;
     
-    client.exec(cmd, (err, stream) => {
+    execCommand(socket.id, cmd, (err, result) => {
       if (err) {
         socket.emit('sftp-operation-error', err.message);
         return;
       }
       
-      stream.on('close', (code) => {
-        if (code !== 0) {
-          socket.emit('sftp-operation-error', 'Erro ao criar arquivo ZIP');
+      // Ler o arquivo ZIP criado
+      getSftpSession(socket.id, (err, sftp) => {
+        if (err) {
+          socket.emit('sftp-operation-error', err.message);
           return;
         }
         
-        // Ler o arquivo ZIP criado
-        getSftpSession(socket.id, (err, sftp) => {
+        sftp.readFile(tmpZip, (err, data) => {
           if (err) {
             socket.emit('sftp-operation-error', err.message);
             return;
           }
           
-          sftp.readFile(tmpZip, (err, data) => {
-            if (err) {
-              socket.emit('sftp-operation-error', err.message);
-              return;
-            }
-            
-            socket.emit('sftp-download-ready', {
-              fileName: 'download.zip',
-              data: data.toString('base64')
-            });
-            
-            // Limpar arquivo temporário
-            client.exec(`rm "${tmpZip}"`, () => {});
+          socket.emit('sftp-download-ready', {
+            fileName: 'download.zip',
+            data: data.toString('base64')
           });
+          
+          // Limpar arquivo temporário
+          execCommand(socket.id, `rm "${tmpZip}"`, () => {});
         });
       });
     });
