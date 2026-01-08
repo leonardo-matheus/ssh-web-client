@@ -1,0 +1,15 @@
+[Unit]
+Description=SSH Web Client
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/ssh-web-client
+Environment=PORT=3022
+ExecStart=/usr/bin/node server.js
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

@@ -37,11 +37,8 @@ pipeline {
             steps {
                 echo '📦 Instalando dependências...'
                 sh '''
-                    # Instalar todas as dependências de produção (incluindo @anthropic-ai/sdk)
-                    npm ci --omit=dev
-                    
-                    # Install sharp for icon generation (dev dependency)
-                    npm install sharp --save-dev
+                    # Instalar todas as dependências (incluindo devDependencies para gerar ícones)
+                    npm ci
                 '''
             }
         }
@@ -51,7 +48,9 @@ pipeline {
                 echo '🎨 Gerando ícones PWA...'
                 sh '''
                     if [ -f scripts/generate-icons.js ]; then
-                        node scripts/generate-icons.js || echo "Icon generation skipped"
+                        node scripts/generate-icons.js || echo "⚠️ Icon generation skipped"
+                    else
+                        echo "ℹ️ Script de ícones não encontrado, pulando..."
                     fi
                 '''
             }
@@ -93,24 +92,31 @@ pipeline {
                         echo "AZURE_AI_BASE_URL=https://conta-ma6t6uyn-eastus2.services.ai.azure.com"
                     else
                         echo "✅ Arquivo .env encontrado"
+                        # Mostrar variáveis configuradas (sem valores sensíveis)
+                        grep -E "^[A-Z_]+=" .env | cut -d= -f1 | while read var; do
+                            echo "  → $var configurado"
+                        done
                     fi
-                    
-                    # Carregar variáveis de ambiente do .env antes de iniciar PM2
-                    set -a
-                    [ -f .env ] && source .env
-                    set +a
                     
                     # Verificar se o app já está rodando no PM2
                     if pm2 describe ${APP_NAME} > /dev/null 2>&1; then
                         echo "♻️ Reiniciando aplicação existente..."
-                        pm2 restart ecosystem.config.js --update-env
+                        pm2 restart ${APP_NAME} --update-env
                     else
                         echo "🆕 Iniciando nova aplicação..."
-                        pm2 start ecosystem.config.js --update-env
+                        # Usar ecosystem.config.js se existir, senão iniciar direto
+                        if [ -f ecosystem.config.js ]; then
+                            pm2 start ecosystem.config.js --update-env
+                        else
+                            pm2 start server.js --name ${APP_NAME} --update-env
+                        fi
                     fi
                     
                     # Salvar estado do PM2
                     pm2 save
+                    
+                    # Mostrar status
+                    pm2 show ${APP_NAME}
                 '''
             }
         }
