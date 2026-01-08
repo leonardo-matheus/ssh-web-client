@@ -1562,35 +1562,41 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================================
-// AI Chat Widget
+// AI Chat Panel (Right Side)
 // ============================================
 
-const aiChatContainer = document.getElementById('aiChatContainer');
-const aiChatToggle = document.getElementById('aiChatToggle');
-const aiChatPanel = document.getElementById('aiChatPanel');
-const aiChatMessages = document.getElementById('aiChatMessages');
-const aiChatInput = document.getElementById('aiChatInput');
-const aiChatSend = document.getElementById('aiChatSend');
-const closeChatBtn = document.getElementById('closeChatBtn');
+const chatPanel = document.getElementById('chatPanel');
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const chatSendBtn = document.getElementById('chatSendBtn');
+const toggleChatBtn = document.getElementById('toggleChatBtn');
+const hideChatBtn = document.getElementById('hideChatBtn');
 const clearChatBtn = document.getElementById('clearChatBtn');
-const aiChatContext = document.getElementById('aiChatContext');
+const chatContext = document.getElementById('chatContext');
 const removeContextBtn = document.getElementById('removeContextBtn');
+const chatResizer = document.getElementById('chatResizer');
+const sftpResizer = document.getElementById('sftpResizer');
 
 // Gerar ID de sessão único para o chat
 const chatSessionId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-let chatContext = null;
+let chatContextData = null;
 let isWaitingResponse = false;
 
-// Abrir/fechar chat
-aiChatToggle.addEventListener('click', () => {
-    aiChatPanel.classList.add('active');
-    aiChatToggle.classList.add('active');
-    aiChatInput.focus();
+// Toggle Chat Panel
+toggleChatBtn.addEventListener('click', () => {
+    mainContent.classList.toggle('chat-visible');
+    if (mainContent.classList.contains('chat-visible')) {
+        chatInput.focus();
+        fitTerminal();
+    } else {
+        fitTerminal();
+    }
 });
 
-closeChatBtn.addEventListener('click', () => {
-    aiChatPanel.classList.remove('active');
-    aiChatToggle.classList.remove('active');
+// Hide Chat Panel
+hideChatBtn.addEventListener('click', () => {
+    mainContent.classList.remove('chat-visible');
+    fitTerminal();
 });
 
 // Limpar conversa
@@ -1607,8 +1613,8 @@ clearChatBtn.addEventListener('click', async () => {
     }
     
     // Limpar UI
-    aiChatMessages.innerHTML = `
-        <div class="ai-chat-welcome">
+    chatMessages.innerHTML = `
+        <div class="chat-welcome">
             <div class="welcome-icon">
                 <i class="fas fa-robot"></i>
             </div>
@@ -1623,48 +1629,48 @@ clearChatBtn.addEventListener('click', async () => {
             <p class="tip">💡 Cole logs de erro para análise!</p>
         </div>
     `;
-    chatContext = null;
-    aiChatContext.style.display = 'none';
+    chatContextData = null;
+    chatContext.style.display = 'none';
     showToast('Conversa limpa', 'success');
 });
 
 // Remover contexto
 removeContextBtn.addEventListener('click', () => {
-    chatContext = null;
-    aiChatContext.style.display = 'none';
+    chatContextData = null;
+    chatContext.style.display = 'none';
 });
 
 // Auto-resize textarea
-aiChatInput.addEventListener('input', function() {
+chatInput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 120) + 'px';
 });
 
 // Enviar mensagem com Enter (Shift+Enter para nova linha)
-aiChatInput.addEventListener('keydown', (e) => {
+chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendChatMessage();
     }
 });
 
-aiChatSend.addEventListener('click', sendChatMessage);
+chatSendBtn.addEventListener('click', sendChatMessage);
 
 // Função para enviar mensagem
 async function sendChatMessage() {
-    const message = aiChatInput.value.trim();
+    const message = chatInput.value.trim();
     if (!message || isWaitingResponse) return;
     
     // Limpar welcome se existir
-    const welcome = aiChatMessages.querySelector('.ai-chat-welcome');
+    const welcome = chatMessages.querySelector('.chat-welcome');
     if (welcome) {
         welcome.remove();
     }
     
     // Adicionar mensagem do usuário
     addChatMessage('user', message);
-    aiChatInput.value = '';
-    aiChatInput.style.height = 'auto';
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
     
     // Mostrar indicador de digitação
     const typingIndicator = document.createElement('div');
@@ -1679,11 +1685,11 @@ async function sendChatMessage() {
             <span></span>
         </div>
     `;
-    aiChatMessages.appendChild(typingIndicator);
-    aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+    chatMessages.appendChild(typingIndicator);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
     
     isWaitingResponse = true;
-    aiChatSend.disabled = true;
+    chatSendBtn.disabled = true;
     
     try {
         const response = await fetch('/ssh/api/chat', {
@@ -1692,7 +1698,7 @@ async function sendChatMessage() {
             body: JSON.stringify({
                 message: message,
                 sessionId: chatSessionId,
-                context: chatContext
+                context: chatContextData
             })
         });
         
@@ -1708,9 +1714,9 @@ async function sendChatMessage() {
         }
         
         // Limpar contexto após usar
-        if (chatContext) {
-            chatContext = null;
-            aiChatContext.style.display = 'none';
+        if (chatContextData) {
+            chatContextData = null;
+            chatContext.style.display = 'none';
         }
         
     } catch (error) {
@@ -1719,8 +1725,8 @@ async function sendChatMessage() {
     }
     
     isWaitingResponse = false;
-    aiChatSend.disabled = false;
-    aiChatInput.focus();
+    chatSendBtn.disabled = false;
+    chatInput.focus();
 }
 
 // Adicionar mensagem ao chat
@@ -1744,8 +1750,28 @@ function addChatMessage(role, content) {
         </div>
     `;
     
-    aiChatMessages.appendChild(messageDiv);
-    aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    // Adicionar event listeners para botões de copiar
+    messageDiv.querySelectorAll('.code-copy-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            const codeBlock = this.closest('.code-block-wrapper').querySelector('code');
+            const code = codeBlock.textContent;
+            
+            try {
+                await navigator.clipboard.writeText(code);
+                this.innerHTML = '<i class="fas fa-check"></i> Copiado!';
+                this.classList.add('copied');
+                setTimeout(() => {
+                    this.innerHTML = '<i class="fas fa-copy"></i> Copiar';
+                    this.classList.remove('copied');
+                }, 2000);
+            } catch (err) {
+                showToast('Erro ao copiar', 'error');
+            }
+        });
+    });
 }
 
 // Formatar mensagem com markdown básico
@@ -1756,19 +1782,38 @@ function formatChatMessage(text) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
     
-    // Code blocks (```)
+    // Code blocks (```) com botão de copiar
+    let codeBlockIndex = 0;
     formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
-        return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+        const langLabel = lang || 'código';
+        codeBlockIndex++;
+        return `<div class="code-block-wrapper">
+            <div class="code-block-header">
+                <span class="code-block-lang">${langLabel}</span>
+                <button class="code-copy-btn" data-code-index="${codeBlockIndex}">
+                    <i class="fas fa-copy"></i> Copiar
+                </button>
+            </div>
+            <pre><code class="language-${lang}">${code.trim()}</code></pre>
+        </div>`;
     });
     
     // Inline code (`)
     formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Headers
+    formatted = formatted.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+    formatted = formatted.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+    formatted = formatted.replace(/^# (.+)$/gm, '<h1>$1</h1>');
     
     // Bold (**)
     formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     
     // Italic (*)
     formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    
+    // Horizontal rule
+    formatted = formatted.replace(/^---$/gm, '<hr>');
     
     // Lists
     formatted = formatted.replace(/^\s*[-•]\s+(.+)$/gm, '<li>$1</li>');
@@ -1777,35 +1822,133 @@ function formatChatMessage(text) {
     // Numbered lists
     formatted = formatted.replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>');
     
-    // Line breaks
+    // Line breaks (but not inside code blocks or headers)
     formatted = formatted.replace(/\n/g, '<br>');
     
     // Clean up extra breaks inside code blocks
-    formatted = formatted.replace(/<pre><code([^>]*)>([\s\S]*?)<\/code><\/pre>/g, (match, attrs, code) => {
-        return `<pre><code${attrs}>${code.replace(/<br>/g, '\n')}</code></pre>`;
+    formatted = formatted.replace(/<div class="code-block-wrapper">([\s\S]*?)<\/div>/g, (match) => {
+        return match.replace(/<br>/g, '');
     });
+    
+    // Clean up breaks after headers
+    formatted = formatted.replace(/<\/h([123])><br>/g, '</h$1>');
+    formatted = formatted.replace(/<br><h([123])>/g, '<h$1>');
+    
+    // Clean up breaks around hr
+    formatted = formatted.replace(/<br><hr><br>/g, '<hr>');
+    formatted = formatted.replace(/<br><hr>/g, '<hr>');
+    formatted = formatted.replace(/<hr><br>/g, '<hr>');
     
     return formatted;
 }
 
 // Função para adicionar contexto ao chat (pode ser chamada de outros lugares)
-function setChatContext(contextText) {
-    chatContext = contextText;
-    aiChatContext.style.display = 'flex';
+function setChatContextData(contextText) {
+    chatContextData = contextText;
+    chatContext.style.display = 'flex';
     
     // Abrir o chat se estiver fechado
-    if (!aiChatPanel.classList.contains('active')) {
-        aiChatPanel.classList.add('active');
-        aiChatToggle.classList.add('active');
+    if (!mainContent.classList.contains('chat-visible')) {
+        mainContent.classList.add('chat-visible');
+        fitTerminal();
     }
     
-    aiChatInput.focus();
+    chatInput.focus();
 }
 
 // Expor função globalmente para uso em outros contextos
-window.setChatContext = setChatContext;
+window.setChatContext = setChatContextData;
 window.openAIChat = () => {
-    aiChatPanel.classList.add('active');
-    aiChatToggle.classList.add('active');
-    aiChatInput.focus();
+    mainContent.classList.add('chat-visible');
+    fitTerminal();
+    chatInput.focus();
 };
+
+// ============================================
+// Panel Resizers
+// ============================================
+
+// Chat Panel Resizer
+let isResizingChat = false;
+let chatStartX = 0;
+let chatStartWidth = 0;
+
+chatResizer.addEventListener('mousedown', (e) => {
+    isResizingChat = true;
+    chatStartX = e.clientX;
+    chatStartWidth = chatPanel.offsetWidth;
+    chatResizer.classList.add('resizing');
+    document.body.style.cursor = 'ew-resize';
+    document.body.style.userSelect = 'none';
+});
+
+// SFTP Panel Resizer
+let isResizingSftp = false;
+let sftpStartX = 0;
+let sftpStartWidth = 0;
+
+if (sftpResizer) {
+    sftpResizer.addEventListener('mousedown', (e) => {
+        isResizingSftp = true;
+        sftpStartX = e.clientX;
+        sftpStartWidth = sftpPanel.offsetWidth;
+        sftpResizer.classList.add('resizing');
+        document.body.style.cursor = 'ew-resize';
+        document.body.style.userSelect = 'none';
+    });
+}
+
+document.addEventListener('mousemove', (e) => {
+    if (isResizingChat) {
+        const diff = chatStartX - e.clientX;
+        const newWidth = Math.min(Math.max(chatStartWidth + diff, 300), 600);
+        chatPanel.style.width = newWidth + 'px';
+        
+        // Update grid template
+        updateGridTemplate();
+        fitTerminal();
+    }
+    
+    if (isResizingSftp) {
+        const diff = e.clientX - sftpStartX;
+        const newWidth = Math.min(Math.max(sftpStartWidth + diff, 280), 500);
+        sftpPanel.style.width = newWidth + 'px';
+        
+        // Update grid template
+        updateGridTemplate();
+        fitTerminal();
+    }
+});
+
+document.addEventListener('mouseup', () => {
+    if (isResizingChat) {
+        isResizingChat = false;
+        chatResizer.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    }
+    
+    if (isResizingSftp) {
+        isResizingSftp = false;
+        if (sftpResizer) sftpResizer.classList.remove('resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+    }
+});
+
+function updateGridTemplate() {
+    const sftpWidth = sftpPanel.offsetWidth;
+    const chatWidth = chatPanel.offsetWidth;
+    const hasSftp = mainContent.classList.contains('sftp-visible');
+    const hasChat = mainContent.classList.contains('chat-visible');
+    
+    if (hasSftp && hasChat) {
+        mainContent.style.gridTemplateColumns = `${sftpWidth}px 1fr ${chatWidth}px`;
+    } else if (hasSftp) {
+        mainContent.style.gridTemplateColumns = `${sftpWidth}px 1fr`;
+    } else if (hasChat) {
+        mainContent.style.gridTemplateColumns = `1fr ${chatWidth}px`;
+    } else {
+        mainContent.style.gridTemplateColumns = '1fr';
+    }
+}
