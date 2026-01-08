@@ -1956,13 +1956,20 @@ async function executeCommandsInTerminal(commands) {
         throw new Error('Não conectado ao SSH');
     }
     
-    // Dividir em linhas e filtrar comentários e linhas vazias
+    // Dividir em linhas e filtrar
     const lines = commands.split('\n')
         .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#'));
+        .filter(line => {
+            // Ignorar linhas vazias
+            if (!line) return false;
+            // Ignorar comentários
+            if (line.startsWith('#')) return false;
+            // Verificar se parece um comando válido
+            return isValidCommand(line);
+        });
     
     if (lines.length === 0) {
-        throw new Error('Nenhum comando para executar');
+        throw new Error('Nenhum comando válido para executar');
     }
     
     // Focar no terminal
@@ -1976,12 +1983,94 @@ async function executeCommandsInTerminal(commands) {
         socket.emit('ssh-data', lines[0] + '\r');
     } else {
         // Múltiplos comandos - juntar com ponto e vírgula para execução sequencial
-        // Isso é mais confiável do que enviar linha por linha
         const combinedCommand = lines.join(' ; ');
         socket.emit('ssh-data', combinedCommand + '\r');
     }
     
     return true;
+}
+
+// Verificar se uma linha parece ser um comando válido de terminal
+function isValidCommand(line) {
+    // Lista de comandos/prefixos comuns de terminal
+    const validPrefixes = [
+        // Comandos com sudo
+        'sudo',
+        // Gerenciadores de pacotes
+        'apt', 'apt-get', 'yum', 'dnf', 'pacman', 'zypper', 'apk', 'brew', 'snap', 'flatpak',
+        // Serviços
+        'systemctl', 'service', 'journalctl',
+        // Docker
+        'docker', 'docker-compose', 'podman',
+        // Node/JS
+        'npm', 'yarn', 'pnpm', 'npx', 'node', 'bun', 'deno',
+        // Python
+        'pip', 'pip3', 'python', 'python3', 'conda', 'pipenv', 'poetry',
+        // Git
+        'git',
+        // Editores
+        'nano', 'vim', 'vi', 'emacs', 'code',
+        // Arquivos/Diretórios
+        'ls', 'cd', 'pwd', 'mkdir', 'rmdir', 'rm', 'cp', 'mv', 'cat', 'less', 'more', 'head', 'tail',
+        'touch', 'chmod', 'chown', 'chgrp', 'ln', 'find', 'locate', 'which', 'whereis',
+        // Texto/Busca
+        'grep', 'awk', 'sed', 'sort', 'uniq', 'wc', 'cut', 'tr', 'diff', 'comm',
+        // Compressão
+        'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'bzip2', 'xz', '7z',
+        // Rede
+        'curl', 'wget', 'ssh', 'scp', 'rsync', 'ftp', 'sftp', 'netstat', 'ss', 'ip', 'ifconfig',
+        'ping', 'traceroute', 'nslookup', 'dig', 'host', 'nc', 'telnet',
+        // Firewall
+        'ufw', 'iptables', 'firewall-cmd', 'nft',
+        // Processos
+        'ps', 'top', 'htop', 'kill', 'killall', 'pkill', 'pgrep', 'nohup', 'bg', 'fg', 'jobs',
+        // Sistema
+        'df', 'du', 'free', 'uname', 'hostname', 'uptime', 'whoami', 'id', 'groups', 'last', 'w',
+        'dmesg', 'lsof', 'strace', 'ltrace', 'vmstat', 'iostat', 'sar',
+        // Usuários
+        'useradd', 'userdel', 'usermod', 'passwd', 'groupadd', 'groupdel', 'su',
+        // Web servers
+        'nginx', 'apache2', 'httpd', 'caddy',
+        // Databases
+        'mysql', 'psql', 'mongo', 'mongosh', 'redis-cli', 'sqlite3',
+        // PM2/Process managers
+        'pm2', 'forever', 'supervisorctl',
+        // Certificados
+        'certbot', 'openssl',
+        // Cron
+        'crontab', 'at',
+        // Outros comuns
+        'echo', 'printf', 'export', 'source', 'alias', 'unalias', 'history', 'clear', 'reset',
+        'date', 'cal', 'bc', 'expr', 'test', 'true', 'false', 'yes', 'sleep', 'watch',
+        'xargs', 'tee', 'time', 'timeout', 'env', 'printenv', 'set', 'unset',
+        'make', 'cmake', 'gcc', 'g++', 'clang', 'rustc', 'cargo', 'go',
+        // Variáveis/caminhos (comandos que começam com ./ ou /)
+    ];
+    
+    // Obter primeira palavra da linha
+    const firstWord = line.split(/[\s;|&]/)[0].toLowerCase();
+    
+    // Verificar se começa com um comando válido
+    if (validPrefixes.includes(firstWord)) {
+        return true;
+    }
+    
+    // Verificar se é um caminho executável (./script.sh ou /usr/bin/algo)
+    if (line.startsWith('./') || line.startsWith('/')) {
+        return true;
+    }
+    
+    // Verificar se é uma atribuição de variável (VAR=value command)
+    if (/^[A-Z_][A-Z0-9_]*=/.test(line)) {
+        return true;
+    }
+    
+    // Verificar se começa com um comando entre parênteses ou subshell
+    if (line.startsWith('(') || line.startsWith('{')) {
+        return true;
+    }
+    
+    return false;
 }
 
 // Formatar mensagem com markdown básico
