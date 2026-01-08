@@ -85,22 +85,25 @@ pipeline {
                 sh '''
                     cd ${APP_DIR}
                     
-                    # Criar arquivo .env com credenciais se não existir
-                    # NOTA: Configure as credenciais manualmente no servidor em /var/www/ssh-web-client/.env
+                    # Verificar arquivo .env
                     if [ ! -f .env ]; then
-                        echo "⚠️ Arquivo .env não encontrado. Crie-o com AZURE_AI_API_KEY e AZURE_AI_BASE_URL"
-                        touch .env
+                        echo "⚠️ ATENÇÃO: Arquivo .env não encontrado!"
+                        echo "Crie o arquivo /var/www/ssh-web-client/.env com:"
+                        echo "AZURE_AI_API_KEY=sua-chave-aqui"
+                        echo "AZURE_AI_BASE_URL=https://conta-ma6t6uyn-eastus2.services.ai.azure.com"
+                    else
+                        echo "✅ Arquivo .env encontrado"
                     fi
                     
-                    # Carregar variáveis de ambiente do .env
-                    if [ -f .env ]; then
-                        export $(cat .env | xargs)
-                    fi
+                    # Carregar variáveis de ambiente do .env antes de iniciar PM2
+                    set -a
+                    [ -f .env ] && source .env
+                    set +a
                     
                     # Verificar se o app já está rodando no PM2
                     if pm2 describe ${APP_NAME} > /dev/null 2>&1; then
                         echo "♻️ Reiniciando aplicação existente..."
-                        pm2 restart ${APP_NAME} --update-env
+                        pm2 restart ecosystem.config.js --update-env
                     else
                         echo "🆕 Iniciando nova aplicação..."
                         pm2 start ecosystem.config.js --update-env

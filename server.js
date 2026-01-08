@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -5,7 +6,6 @@ const { Client } = require('ssh2');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
-const Anthropic = require('@anthropic-ai/sdk');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,12 +17,9 @@ const io = new Server(server, {
   }
 });
 
-// Configuração do cliente Anthropic para Azure AI Foundry
-// A API Key deve ser definida via variável de ambiente AZURE_AI_API_KEY
-const anthropicClient = new Anthropic({
-  apiKey: process.env.AZURE_AI_API_KEY || '',
-  baseURL: process.env.AZURE_AI_BASE_URL || 'https://conta-ma6t6uyn-eastus2.services.ai.azure.com/anthropic/v1'
-});
+// Configuração da API Azure AI Foundry
+const AZURE_AI_API_KEY = process.env.AZURE_AI_API_KEY || '';
+const AZURE_AI_ENDPOINT = process.env.AZURE_AI_BASE_URL || 'https://conta-ma6t6uyn-eastus2.services.ai.azure.com';
 
 // Configurar upload de arquivos
 const upload = multer({ dest: 'uploads/' });
@@ -114,6 +111,55 @@ function execCommand(socketId, cmd, callback) {
 // Armazenar histórico de conversas por sessão
 const chatHistories = new Map();
 
+// Função para chamar Azure AI Foundry (Claude via API Anthropic)
+async function callAzureAI(messages, systemPrompt) {
+  // Azure AI Services - Endpoint para modelos Anthropic
+  const url = `${AZURE_AI_ENDPOINT}/anthropic/v1/messages`;
+  
+  console.log('Calling Azure AI:', url);
+  console.log('API Key (first 10 chars):', AZURE_AI_API_KEY.substring(0, 10) + '...');
+  
+  // Formato Anthropic nativo
+  console.log('Sending request with', messages.length, 'messages');
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': AZURE_AI_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-5',
+      max_tokens: 4096,
+      temperature: 0.7,
+      system: systemPrompt,
+      messages: messages
+    })
+  });
+
+  console.log('Response status:', response.status);
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('API Error:', errorText);
+    throw new Error(`Azure AI API Error: ${response.status} - ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('Response received:', JSON.stringify(data).substring(0, 200));
+  
+  // Converter formato Anthropic para formato OpenAI-like
+  return {
+    choices: [{
+      message: {
+        content: data.content[0].text
+      }
+    }],
+    usage: data.usage
+  };
+}
+
 // Endpoint para chat com Claude
 app.post('/ssh/api/chat', async (req, res) => {
   try {
@@ -154,15 +200,10 @@ ${context ? `\nContexto adicional do usuário:\n${context}` : ''}`;
     }
 
     // Fazer chamada para Claude via Azure AI Foundry
-    const response = await anthropicClient.messages.create({
-      model: 'claude-opus-4-5',
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: history
-    });
+    const response = await callAzureAI(history, systemPrompt);
 
     // Extrair resposta
-    const assistantMessage = response.content[0].text;
+    const assistantMessage = response.choices[0].message.content;
 
     // Adicionar resposta ao histórico
     history.push({

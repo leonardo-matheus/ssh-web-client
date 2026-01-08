@@ -10,9 +10,9 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3022,
       // Azure AI Foundry - Claude API Configuration
-      // Estas variáveis podem ser sobrescritas por variáveis de ambiente do sistema
+      // Estas variáveis devem ser definidas no arquivo .env no servidor
       AZURE_AI_API_KEY: process.env.AZURE_AI_API_KEY || '',
-      AZURE_AI_BASE_URL: process.env.AZURE_AI_BASE_URL || 'https://conta-ma6t6uyn-eastus2.services.ai.azure.com/anthropic/v1'
+      AZURE_AI_BASE_URL: process.env.AZURE_AI_BASE_URL || 'https://conta-ma6t6uyn-eastus2.services.ai.azure.com'
     }
   }]
 };
