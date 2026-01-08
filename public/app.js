@@ -1772,6 +1772,171 @@ function addChatMessage(role, content) {
             }
         });
     });
+    
+    // Adicionar event listeners para botões de executar
+    messageDiv.querySelectorAll('.code-run-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            if (!isConnected) {
+                showToast('Conecte-se ao SSH primeiro', 'warning');
+                return;
+            }
+            
+            const codeBlock = this.closest('.code-block-wrapper').querySelector('code');
+            const commands = codeBlock.textContent.trim();
+            
+            // Feedback visual
+            const originalHtml = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando...';
+            this.classList.add('running');
+            this.disabled = true;
+            
+            try {
+                await executeCommandsInTerminal(commands);
+                this.innerHTML = '<i class="fas fa-check"></i> Executado!';
+                this.classList.remove('running');
+                this.classList.add('executed');
+                showToast('Comando enviado ao terminal', 'success');
+                
+                setTimeout(() => {
+                    this.innerHTML = originalHtml;
+                    this.classList.remove('executed');
+                    this.disabled = false;
+                }, 3000);
+            } catch (err) {
+                this.innerHTML = '<i class="fas fa-times"></i> Erro';
+                this.classList.remove('running');
+                showToast('Erro ao executar: ' + err.message, 'error');
+                
+                setTimeout(() => {
+                    this.innerHTML = originalHtml;
+                    this.disabled = false;
+                }, 3000);
+            }
+        });
+    });
+}
+
+// Verificar se o código é executável (comandos de terminal)
+function isExecutableCode(lang, code) {
+    // Linguagens de shell/terminal
+    const executableLangs = ['bash', 'sh', 'shell', 'zsh', 'console', 'terminal', 'cmd', 'powershell', 'ps1', ''];
+    
+    // Se a linguagem é explicitamente de shell
+    if (executableLangs.includes(lang.toLowerCase())) {
+        return true;
+    }
+    
+    // Detectar comandos comuns mesmo sem especificar linguagem
+    const commandPatterns = [
+        /^(sudo\s+)?apt(-get)?\s+/m,
+        /^(sudo\s+)?yum\s+/m,
+        /^(sudo\s+)?dnf\s+/m,
+        /^(sudo\s+)?pacman\s+/m,
+        /^(sudo\s+)?systemctl\s+/m,
+        /^(sudo\s+)?service\s+/m,
+        /^(sudo\s+)?docker\s+/m,
+        /^(sudo\s+)?docker-compose\s+/m,
+        /^(sudo\s+)?npm\s+/m,
+        /^(sudo\s+)?yarn\s+/m,
+        /^(sudo\s+)?pip\s+/m,
+        /^(sudo\s+)?git\s+/m,
+        /^(sudo\s+)?pm2\s+/m,
+        /^(sudo\s+)?nginx\s+/m,
+        /^(sudo\s+)?mysql\s+/m,
+        /^(sudo\s+)?psql\s+/m,
+        /^(sudo\s+)?mongo\s+/m,
+        /^(sudo\s+)?redis-cli\s+/m,
+        /^(sudo\s+)?curl\s+/m,
+        /^(sudo\s+)?wget\s+/m,
+        /^(sudo\s+)?chmod\s+/m,
+        /^(sudo\s+)?chown\s+/m,
+        /^(sudo\s+)?mkdir\s+/m,
+        /^(sudo\s+)?rm\s+/m,
+        /^(sudo\s+)?cp\s+/m,
+        /^(sudo\s+)?mv\s+/m,
+        /^(sudo\s+)?cat\s+/m,
+        /^(sudo\s+)?nano\s+/m,
+        /^(sudo\s+)?vim?\s+/m,
+        /^(sudo\s+)?tail\s+/m,
+        /^(sudo\s+)?head\s+/m,
+        /^(sudo\s+)?grep\s+/m,
+        /^(sudo\s+)?find\s+/m,
+        /^(sudo\s+)?ls\s*/m,
+        /^(sudo\s+)?cd\s+/m,
+        /^(sudo\s+)?pwd\s*/m,
+        /^(sudo\s+)?echo\s+/m,
+        /^(sudo\s+)?export\s+/m,
+        /^(sudo\s+)?source\s+/m,
+        /^(sudo\s+)?ssh\s+/m,
+        /^(sudo\s+)?scp\s+/m,
+        /^(sudo\s+)?rsync\s+/m,
+        /^(sudo\s+)?tar\s+/m,
+        /^(sudo\s+)?unzip\s+/m,
+        /^(sudo\s+)?zip\s+/m,
+        /^(sudo\s+)?kill\s+/m,
+        /^(sudo\s+)?killall\s+/m,
+        /^(sudo\s+)?ps\s+/m,
+        /^(sudo\s+)?top\s*/m,
+        /^(sudo\s+)?htop\s*/m,
+        /^(sudo\s+)?df\s+/m,
+        /^(sudo\s+)?du\s+/m,
+        /^(sudo\s+)?free\s*/m,
+        /^(sudo\s+)?uname\s*/m,
+        /^(sudo\s+)?whoami\s*/m,
+        /^(sudo\s+)?hostname\s*/m,
+        /^(sudo\s+)?ifconfig\s*/m,
+        /^(sudo\s+)?ip\s+/m,
+        /^(sudo\s+)?netstat\s+/m,
+        /^(sudo\s+)?ss\s+/m,
+        /^(sudo\s+)?ping\s+/m,
+        /^(sudo\s+)?traceroute\s+/m,
+        /^(sudo\s+)?nslookup\s+/m,
+        /^(sudo\s+)?dig\s+/m,
+        /^(sudo\s+)?firewall-cmd\s+/m,
+        /^(sudo\s+)?ufw\s+/m,
+        /^(sudo\s+)?iptables\s+/m,
+        /^(sudo\s+)?certbot\s+/m,
+        /^(sudo\s+)?crontab\s+/m,
+        /^(sudo\s+)?journalctl\s+/m,
+        /^(sudo\s+)?dmesg\s*/m,
+        /^#\s*!/m,  // Shebang
+    ];
+    
+    return commandPatterns.some(pattern => pattern.test(code));
+}
+
+// Executar comandos no terminal SSH
+async function executeCommandsInTerminal(commands) {
+    if (!isConnected || !socket) {
+        throw new Error('Não conectado ao SSH');
+    }
+    
+    // Dividir em linhas e filtrar comentários e linhas vazias
+    const lines = commands.split('\n')
+        .map(line => line.trim())
+        .filter(line => line && !line.startsWith('#'));
+    
+    if (lines.length === 0) {
+        throw new Error('Nenhum comando para executar');
+    }
+    
+    // Focar no terminal
+    if (term) {
+        term.focus();
+    }
+    
+    // Enviar cada comando
+    for (const command of lines) {
+        // Enviar o comando + Enter
+        socket.emit('ssh-data', command + '\r');
+        
+        // Pequeno delay entre comandos para dar tempo de processar
+        if (lines.length > 1) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+    
+    return true;
 }
 
 // Formatar mensagem com markdown básico
@@ -1782,17 +1947,28 @@ function formatChatMessage(text) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
     
-    // Code blocks (```) com botão de copiar
+    // Code blocks (```) com botões de copiar e executar
     let codeBlockIndex = 0;
     formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
         const langLabel = lang || 'código';
+        const isExecutable = isExecutableCode(lang, code.trim());
         codeBlockIndex++;
+        
+        const runButton = isExecutable 
+            ? `<button class="code-run-btn" data-code-index="${codeBlockIndex}" title="Executar no terminal SSH">
+                    <i class="fas fa-play"></i> Run
+                </button>`
+            : '';
+        
         return `<div class="code-block-wrapper">
             <div class="code-block-header">
                 <span class="code-block-lang">${langLabel}</span>
-                <button class="code-copy-btn" data-code-index="${codeBlockIndex}">
-                    <i class="fas fa-copy"></i> Copiar
-                </button>
+                <div class="code-block-actions">
+                    <button class="code-copy-btn" data-code-index="${codeBlockIndex}">
+                        <i class="fas fa-copy"></i> Copiar
+                    </button>
+                    ${runButton}
+                </div>
             </div>
             <pre><code class="language-${lang}">${code.trim()}</code></pre>
         </div>`;

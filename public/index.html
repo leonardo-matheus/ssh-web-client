@@ -1172,7 +1172,14 @@
             font-weight: 600;
         }
 
-        .code-copy-btn {
+        .code-block-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .code-copy-btn,
+        .code-run-btn {
             display: flex;
             align-items: center;
             gap: 5px;
@@ -1194,6 +1201,32 @@
         .code-copy-btn.copied {
             background: rgba(46, 204, 113, 0.3);
             color: #2ecc71;
+        }
+
+        .code-run-btn {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+        }
+
+        .code-run-btn:hover {
+            background: rgba(46, 204, 113, 0.4);
+            color: #fff;
+        }
+
+        .code-run-btn.running {
+            background: rgba(241, 196, 15, 0.3);
+            color: #f1c40f;
+            pointer-events: none;
+        }
+
+        .code-run-btn.executed {
+            background: rgba(46, 204, 113, 0.4);
+            color: #2ecc71;
+        }
+
+        .code-run-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
 
         .chat-message-content pre {
