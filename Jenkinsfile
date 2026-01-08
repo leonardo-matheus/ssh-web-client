@@ -37,9 +37,10 @@ pipeline {
             steps {
                 echo '📦 Instalando dependências...'
                 sh '''
+                    # Instalar todas as dependências de produção (incluindo @anthropic-ai/sdk)
                     npm ci --omit=dev
                     
-                    # Install sharp for icon generation
+                    # Install sharp for icon generation (dev dependency)
                     npm install sharp --save-dev
                 '''
             }
@@ -123,6 +124,7 @@ pipeline {
             ╔═══════════════════════════════════════════╗
             ║  ✅ Deploy realizado com sucesso!         ║
             ║  🌐 https://191-235-32-212.nip.io/ssh     ║
+            ║  🤖 Chat AI integrado e funcionando!      ║
             ╚═══════════════════════════════════════════╝
             '''
         }

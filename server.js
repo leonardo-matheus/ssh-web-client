@@ -5,6 +5,7 @@ const { Client } = require('ssh2');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const Anthropic = require('@anthropic-ai/sdk');
 
 const app = express();
 const server = http.createServer(app);
@@ -14,6 +15,13 @@ const io = new Server(server, {
     origin: '*',
     methods: ['GET', 'POST']
   }
+});
+
+// Configuração do cliente Anthropic para Azure AI Foundry
+// A API Key deve ser definida via variável de ambiente AZURE_AI_API_KEY
+const anthropicClient = new Anthropic({
+  apiKey: process.env.AZURE_AI_API_KEY || '',
+  baseURL: process.env.AZURE_AI_BASE_URL || 'https://conta-ma6t6uyn-eastus2.services.ai.azure.com/anthropic/v1'
 });
 
 // Configurar upload de arquivos
@@ -98,6 +106,96 @@ function execCommand(socketId, cmd, callback) {
     });
   });
 }
+
+// ============================================
+// API Chat - Claude AI (Azure AI Foundry)
+// ============================================
+
+// Armazenar histórico de conversas por sessão
+const chatHistories = new Map();
+
+// Endpoint para chat com Claude
+app.post('/ssh/api/chat', async (req, res) => {
+  try {
+    const { message, sessionId, context } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Mensagem é obrigatória' });
+    }
+
+    // Obter ou criar histórico de conversa
+    let history = chatHistories.get(sessionId) || [];
+    
+    // Criar mensagem do sistema com contexto de DevOps/SSH
+    const systemPrompt = `Você é um assistente especializado em DevOps, administração de sistemas Linux/Unix, SSH, SFTP e deploy de aplicações. 
+Você ajuda desenvolvedores a:
+- Resolver erros durante deploys
+- Diagnosticar problemas em servidores
+- Escrever scripts bash/shell
+- Configurar serviços (nginx, apache, pm2, docker, etc.)
+- Gerenciar arquivos via SFTP
+- Troubleshooting de aplicações web
+
+Seja conciso e direto. Forneça comandos e soluções práticas.
+Se o usuário fornecer logs de erro, analise-os e sugira soluções.
+Responda em português brasileiro.
+
+${context ? `\nContexto adicional do usuário:\n${context}` : ''}`;
+
+    // Adicionar mensagem do usuário ao histórico
+    history.push({
+      role: 'user',
+      content: message
+    });
+
+    // Limitar histórico para não exceder contexto
+    if (history.length > 20) {
+      history = history.slice(-20);
+    }
+
+    // Fazer chamada para Claude via Azure AI Foundry
+    const response = await anthropicClient.messages.create({
+      model: 'claude-opus-4-5',
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: history
+    });
+
+    // Extrair resposta
+    const assistantMessage = response.content[0].text;
+
+    // Adicionar resposta ao histórico
+    history.push({
+      role: 'assistant',
+      content: assistantMessage
+    });
+
+    // Salvar histórico atualizado
+    chatHistories.set(sessionId, history);
+
+    res.json({
+      success: true,
+      message: assistantMessage,
+      usage: response.usage
+    });
+
+  } catch (error) {
+    console.error('Erro no chat:', error);
+    res.status(500).json({
+      error: 'Erro ao processar mensagem',
+      details: error.message
+    });
+  }
+});
+
+// Endpoint para limpar histórico de conversa
+app.post('/ssh/api/chat/clear', (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId) {
+    chatHistories.delete(sessionId);
+  }
+  res.json({ success: true, message: 'Histórico limpo' });
+});
 
 // Socket.io para terminal SSH
 io.on('connection', (socket) => {

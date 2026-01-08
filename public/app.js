@@ -1561,4 +1561,251 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// ============================================
+// AI Chat Widget
+// ============================================
 
+const aiChatContainer = document.getElementById('aiChatContainer');
+const aiChatToggle = document.getElementById('aiChatToggle');
+const aiChatPanel = document.getElementById('aiChatPanel');
+const aiChatMessages = document.getElementById('aiChatMessages');
+const aiChatInput = document.getElementById('aiChatInput');
+const aiChatSend = document.getElementById('aiChatSend');
+const closeChatBtn = document.getElementById('closeChatBtn');
+const clearChatBtn = document.getElementById('clearChatBtn');
+const aiChatContext = document.getElementById('aiChatContext');
+const removeContextBtn = document.getElementById('removeContextBtn');
+
+// Gerar ID de sessão único para o chat
+const chatSessionId = 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+let chatContext = null;
+let isWaitingResponse = false;
+
+// Abrir/fechar chat
+aiChatToggle.addEventListener('click', () => {
+    aiChatPanel.classList.add('active');
+    aiChatToggle.classList.add('active');
+    aiChatInput.focus();
+});
+
+closeChatBtn.addEventListener('click', () => {
+    aiChatPanel.classList.remove('active');
+    aiChatToggle.classList.remove('active');
+});
+
+// Limpar conversa
+clearChatBtn.addEventListener('click', async () => {
+    // Limpar no servidor
+    try {
+        await fetch('/ssh/api/chat/clear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sessionId: chatSessionId })
+        });
+    } catch (e) {
+        console.error('Erro ao limpar histórico:', e);
+    }
+    
+    // Limpar UI
+    aiChatMessages.innerHTML = `
+        <div class="ai-chat-welcome">
+            <div class="welcome-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+            <h4>Olá! Sou seu assistente DevOps</h4>
+            <p>Posso ajudar com:</p>
+            <ul>
+                <li><i class="fas fa-bug"></i> Resolver erros de deploy</li>
+                <li><i class="fas fa-terminal"></i> Comandos Linux/Bash</li>
+                <li><i class="fas fa-server"></i> Configuração de servidores</li>
+                <li><i class="fas fa-docker"></i> Docker, PM2, Nginx...</li>
+            </ul>
+            <p class="tip">💡 Cole logs de erro para análise!</p>
+        </div>
+    `;
+    chatContext = null;
+    aiChatContext.style.display = 'none';
+    showToast('Conversa limpa', 'success');
+});
+
+// Remover contexto
+removeContextBtn.addEventListener('click', () => {
+    chatContext = null;
+    aiChatContext.style.display = 'none';
+});
+
+// Auto-resize textarea
+aiChatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// Enviar mensagem com Enter (Shift+Enter para nova linha)
+aiChatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+    }
+});
+
+aiChatSend.addEventListener('click', sendChatMessage);
+
+// Função para enviar mensagem
+async function sendChatMessage() {
+    const message = aiChatInput.value.trim();
+    if (!message || isWaitingResponse) return;
+    
+    // Limpar welcome se existir
+    const welcome = aiChatMessages.querySelector('.ai-chat-welcome');
+    if (welcome) {
+        welcome.remove();
+    }
+    
+    // Adicionar mensagem do usuário
+    addChatMessage('user', message);
+    aiChatInput.value = '';
+    aiChatInput.style.height = 'auto';
+    
+    // Mostrar indicador de digitação
+    const typingIndicator = document.createElement('div');
+    typingIndicator.className = 'chat-typing';
+    typingIndicator.innerHTML = `
+        <div class="chat-message-avatar">
+            <i class="fas fa-robot"></i>
+        </div>
+        <div class="chat-typing-indicator">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+    `;
+    aiChatMessages.appendChild(typingIndicator);
+    aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+    
+    isWaitingResponse = true;
+    aiChatSend.disabled = true;
+    
+    try {
+        const response = await fetch('/ssh/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: message,
+                sessionId: chatSessionId,
+                context: chatContext
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Remover indicador de digitação
+        typingIndicator.remove();
+        
+        if (data.success) {
+            addChatMessage('assistant', data.message);
+        } else {
+            addChatMessage('assistant', `❌ Erro: ${data.error || 'Não foi possível obter resposta'}`);
+        }
+        
+        // Limpar contexto após usar
+        if (chatContext) {
+            chatContext = null;
+            aiChatContext.style.display = 'none';
+        }
+        
+    } catch (error) {
+        typingIndicator.remove();
+        addChatMessage('assistant', `❌ Erro de conexão: ${error.message}`);
+    }
+    
+    isWaitingResponse = false;
+    aiChatSend.disabled = false;
+    aiChatInput.focus();
+}
+
+// Adicionar mensagem ao chat
+function addChatMessage(role, content) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}`;
+    
+    const avatar = role === 'assistant' 
+        ? '<i class="fas fa-robot"></i>' 
+        : '<i class="fas fa-user"></i>';
+    
+    // Formatar conteúdo (markdown básico)
+    const formattedContent = formatChatMessage(content);
+    
+    messageDiv.innerHTML = `
+        <div class="chat-message-avatar">
+            ${avatar}
+        </div>
+        <div class="chat-message-content">
+            ${formattedContent}
+        </div>
+    `;
+    
+    aiChatMessages.appendChild(messageDiv);
+    aiChatMessages.scrollTop = aiChatMessages.scrollHeight;
+}
+
+// Formatar mensagem com markdown básico
+function formatChatMessage(text) {
+    // Escapar HTML primeiro
+    let formatted = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    
+    // Code blocks (```)
+    formatted = formatted.replace(/```(\w*)\n?([\s\S]*?)```/g, (match, lang, code) => {
+        return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
+    });
+    
+    // Inline code (`)
+    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Bold (**)
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Italic (*)
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    
+    // Lists
+    formatted = formatted.replace(/^\s*[-•]\s+(.+)$/gm, '<li>$1</li>');
+    formatted = formatted.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+    
+    // Numbered lists
+    formatted = formatted.replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li>$2</li>');
+    
+    // Line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    // Clean up extra breaks inside code blocks
+    formatted = formatted.replace(/<pre><code([^>]*)>([\s\S]*?)<\/code><\/pre>/g, (match, attrs, code) => {
+        return `<pre><code${attrs}>${code.replace(/<br>/g, '\n')}</code></pre>`;
+    });
+    
+    return formatted;
+}
+
+// Função para adicionar contexto ao chat (pode ser chamada de outros lugares)
+function setChatContext(contextText) {
+    chatContext = contextText;
+    aiChatContext.style.display = 'flex';
+    
+    // Abrir o chat se estiver fechado
+    if (!aiChatPanel.classList.contains('active')) {
+        aiChatPanel.classList.add('active');
+        aiChatToggle.classList.add('active');
+    }
+    
+    aiChatInput.focus();
+}
+
+// Expor função globalmente para uso em outros contextos
+window.setChatContext = setChatContext;
+window.openAIChat = () => {
+    aiChatPanel.classList.add('active');
+    aiChatToggle.classList.add('active');
+    aiChatInput.focus();
+};
