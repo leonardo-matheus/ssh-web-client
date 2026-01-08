@@ -1829,37 +1829,37 @@ function addChatMessage(role, content) {
             const codeBlock = this.closest('.code-block-wrapper').querySelector('code');
             const commands = codeBlock.textContent.trim();
             
+            console.log('Comandos a executar:', commands);
+            
             // Feedback visual
             const originalHtml = this.innerHTML;
-            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando...';
             this.classList.add('running');
             this.disabled = true;
             
             try {
                 const result = await executeCommandsInTerminal(commands);
-                this.innerHTML = '<i class="fas fa-check"></i>';
+                console.log('Resultado:', result);
+                this.innerHTML = '<i class="fas fa-check"></i> Executado!';
                 this.classList.remove('running');
                 this.classList.add('executed');
-                
-                // Mostrar quantos comandos foram executados discretamente
-                if (result.lines > 1) {
-                    showToast(`${result.lines} comandos enviados`, 'success');
-                }
+                showToast('Comando enviado ao terminal', 'success');
                 
                 setTimeout(() => {
                     this.innerHTML = originalHtml;
                     this.classList.remove('executed');
                     this.disabled = false;
-                }, 2000);
+                }, 3000);
             } catch (err) {
-                this.innerHTML = '<i class="fas fa-times"></i>';
+                console.error('Erro ao executar:', err);
+                this.innerHTML = '<i class="fas fa-times"></i> Erro';
                 this.classList.remove('running');
-                showToast(err.message, 'warning');
+                showToast('Erro: ' + err.message, 'error');
                 
                 setTimeout(() => {
                     this.innerHTML = originalHtml;
                     this.disabled = false;
-                }, 2000);
+                }, 3000);
             }
         });
     });
@@ -1956,17 +1956,31 @@ function isExecutableCode(lang, code) {
 
 // Executar comandos no terminal SSH
 async function executeCommandsInTerminal(commands) {
+    console.log('executeCommandsInTerminal chamado com:', commands);
+    
     if (!isConnected || !socket) {
-        throw new Error('Conecte ao SSH primeiro');
+        throw new Error('Não conectado ao SSH');
     }
     
-    // Dividir em linhas e filtrar apenas comandos válidos
-    const lines = commands.split('\n')
-        .map(line => line.trim())
-        .filter(line => line && !line.startsWith('#') && isValidCommand(line));
+    // Dividir em linhas e filtrar
+    const allLines = commands.split('\n').map(line => line.trim());
+    console.log('Todas as linhas:', allLines);
+    
+    const lines = allLines.filter(line => {
+        // Ignorar linhas vazias
+        if (!line) return false;
+        // Ignorar comentários
+        if (line.startsWith('#')) return false;
+        // Verificar se parece um comando válido
+        const isValid = isValidCommand(line);
+        console.log(`Linha "${line}" é válida:`, isValid);
+        return isValid;
+    });
+    
+    console.log('Linhas filtradas:', lines);
     
     if (lines.length === 0) {
-        throw new Error('Nenhum comando encontrado');
+        throw new Error('Nenhum comando válido para executar');
     }
     
     // Focar no terminal
@@ -1974,8 +1988,17 @@ async function executeCommandsInTerminal(commands) {
         term.focus();
     }
     
-    // Enviar comando(s)
-    const commandToSend = lines.length === 1 ? lines[0] : lines.join(' ; ');
+    // Para múltiplos comandos, juntar com ; ou enviar um por um
+    let commandToSend;
+    if (lines.length === 1) {
+        // Comando único - enviar direto
+        commandToSend = lines[0];
+    } else {
+        // Múltiplos comandos - juntar com ponto e vírgula para execução sequencial
+        commandToSend = lines.join(' ; ');
+    }
+    
+    console.log('Enviando comando:', commandToSend);
     socket.emit('ssh-data', commandToSend + '\r');
     
     return { sent: commandToSend, lines: lines.length };
@@ -2080,8 +2103,8 @@ function formatChatMessage(text) {
         codeBlockIndex++;
         
         const runButton = isExecutable 
-            ? `<button class="code-run-btn" data-code-index="${codeBlockIndex}" title="Executar no terminal">
-                    <i class="fas fa-play"></i>
+            ? `<button class="code-run-btn" data-code-index="${codeBlockIndex}" title="Executar no terminal SSH">
+                    <i class="fas fa-play"></i> Run
                 </button>`
             : '';
         
@@ -2089,8 +2112,8 @@ function formatChatMessage(text) {
             <div class="code-block-header">
                 <span class="code-block-lang">${langLabel}</span>
                 <div class="code-block-actions">
-                    <button class="code-copy-btn" data-code-index="${codeBlockIndex}" title="Copiar código">
-                        <i class="fas fa-copy"></i>
+                    <button class="code-copy-btn" data-code-index="${codeBlockIndex}">
+                        <i class="fas fa-copy"></i> Copiar
                     </button>
                     ${runButton}
                 </div>
