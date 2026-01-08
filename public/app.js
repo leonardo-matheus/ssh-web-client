@@ -1970,15 +1970,15 @@ async function executeCommandsInTerminal(commands) {
         term.focus();
     }
     
-    // Enviar cada comando
-    for (const command of lines) {
-        // Enviar o comando + Enter
-        socket.emit('ssh-data', command + '\r');
-        
-        // Pequeno delay entre comandos para dar tempo de processar
-        if (lines.length > 1) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
+    // Para múltiplos comandos, juntar com ; ou enviar um por um
+    if (lines.length === 1) {
+        // Comando único - enviar direto
+        socket.emit('ssh-data', lines[0] + '\r');
+    } else {
+        // Múltiplos comandos - juntar com ponto e vírgula para execução sequencial
+        // Isso é mais confiável do que enviar linha por linha
+        const combinedCommand = lines.join(' ; ');
+        socket.emit('ssh-data', combinedCommand + '\r');
     }
     
     return true;
