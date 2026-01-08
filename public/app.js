@@ -1829,6 +1829,8 @@ function addChatMessage(role, content) {
             const codeBlock = this.closest('.code-block-wrapper').querySelector('code');
             const commands = codeBlock.textContent.trim();
             
+            console.log('Comandos a executar:', commands);
+            
             // Feedback visual
             const originalHtml = this.innerHTML;
             this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executando...';
@@ -1836,7 +1838,8 @@ function addChatMessage(role, content) {
             this.disabled = true;
             
             try {
-                await executeCommandsInTerminal(commands);
+                const result = await executeCommandsInTerminal(commands);
+                console.log('Resultado:', result);
                 this.innerHTML = '<i class="fas fa-check"></i> Executado!';
                 this.classList.remove('running');
                 this.classList.add('executed');
@@ -1848,9 +1851,10 @@ function addChatMessage(role, content) {
                     this.disabled = false;
                 }, 3000);
             } catch (err) {
+                console.error('Erro ao executar:', err);
                 this.innerHTML = '<i class="fas fa-times"></i> Erro';
                 this.classList.remove('running');
-                showToast('Erro ao executar: ' + err.message, 'error');
+                showToast('Erro: ' + err.message, 'error');
                 
                 setTimeout(() => {
                     this.innerHTML = originalHtml;
@@ -1952,21 +1956,28 @@ function isExecutableCode(lang, code) {
 
 // Executar comandos no terminal SSH
 async function executeCommandsInTerminal(commands) {
+    console.log('executeCommandsInTerminal chamado com:', commands);
+    
     if (!isConnected || !socket) {
         throw new Error('Não conectado ao SSH');
     }
     
     // Dividir em linhas e filtrar
-    const lines = commands.split('\n')
-        .map(line => line.trim())
-        .filter(line => {
-            // Ignorar linhas vazias
-            if (!line) return false;
-            // Ignorar comentários
-            if (line.startsWith('#')) return false;
-            // Verificar se parece um comando válido
-            return isValidCommand(line);
-        });
+    const allLines = commands.split('\n').map(line => line.trim());
+    console.log('Todas as linhas:', allLines);
+    
+    const lines = allLines.filter(line => {
+        // Ignorar linhas vazias
+        if (!line) return false;
+        // Ignorar comentários
+        if (line.startsWith('#')) return false;
+        // Verificar se parece um comando válido
+        const isValid = isValidCommand(line);
+        console.log(`Linha "${line}" é válida:`, isValid);
+        return isValid;
+    });
+    
+    console.log('Linhas filtradas:', lines);
     
     if (lines.length === 0) {
         throw new Error('Nenhum comando válido para executar');
@@ -1978,16 +1989,19 @@ async function executeCommandsInTerminal(commands) {
     }
     
     // Para múltiplos comandos, juntar com ; ou enviar um por um
+    let commandToSend;
     if (lines.length === 1) {
         // Comando único - enviar direto
-        socket.emit('ssh-data', lines[0] + '\r');
+        commandToSend = lines[0];
     } else {
         // Múltiplos comandos - juntar com ponto e vírgula para execução sequencial
-        const combinedCommand = lines.join(' ; ');
-        socket.emit('ssh-data', combinedCommand + '\r');
+        commandToSend = lines.join(' ; ');
     }
     
-    return true;
+    console.log('Enviando comando:', commandToSend);
+    socket.emit('ssh-data', commandToSend + '\r');
+    
+    return { sent: commandToSend, lines: lines.length };
 }
 
 // Verificar se uma linha parece ser um comando válido de terminal
