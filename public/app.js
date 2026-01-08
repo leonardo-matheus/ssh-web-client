@@ -21,6 +21,24 @@ let selectedFiles = []; // Array para múltipla seleção
 let lastSelectedIndex = -1; // Para seleção com Shift
 let copyMoveOperation = null; // 'copy' ou 'move'
 let clipboard = { files: [], operation: null }; // Para Ctrl+C/X/V
+let sshPassword = null; // Armazena a senha SSH para uso com sudo
+let sudoPasswordPending = false; // Flag para detectar prompt de sudo
+let terminalOutputBuffer = ''; // Buffer para detectar prompts
+
+// Função para ajustar o tamanho do terminal
+function fitTerminal() {
+    if (fitAddon && term) {
+        setTimeout(() => {
+            fitAddon.fit();
+            if (isConnected) {
+                socket.emit('ssh-resize', {
+                    cols: term.cols,
+                    rows: term.rows
+                });
+            }
+        }, 50);
+    }
+}
 
 // LocalStorage key
 const STORAGE_KEY = 'ssh_credentials';
@@ -423,6 +441,9 @@ connectBtn.addEventListener('click', () => {
     const password = document.getElementById('password').value;
     const privateKey = document.getElementById('privateKey').value;
     const passphrase = document.getElementById('passphrase').value;
+    
+    // Armazenar senha para uso com sudo
+    sshPassword = password;
 
     if (!host || !username) {
         showToast('Preencha host e usuário', 'error');
@@ -507,6 +528,40 @@ socket.on('ssh-ready', () => {
 socket.on('ssh-data', (data) => {
     if (term) {
         term.write(data);
+        
+        // Detectar prompt de senha do sudo
+        terminalOutputBuffer += data;
+        // Manter apenas os últimos 500 caracteres para performance
+        if (terminalOutputBuffer.length > 500) {
+            terminalOutputBuffer = terminalOutputBuffer.slice(-500);
+        }
+        
+        // Detectar padrões de prompt de sudo
+        const sudoPatterns = [
+            /\[sudo\] (senha|password) (para|for) \w+:/i,
+            /Password:/i,
+            /\[sudo\] password for \w+:/i,
+            /senha:/i
+        ];
+        
+        const hasSudoPrompt = sudoPatterns.some(pattern => pattern.test(terminalOutputBuffer));
+        
+        if (hasSudoPrompt && sshPassword && !sudoPasswordPending) {
+            sudoPasswordPending = true;
+            // Pequeno delay para garantir que o prompt está pronto
+            setTimeout(() => {
+                if (sshPassword) {
+                    socket.emit('ssh-data', sshPassword + '\r');
+                    terminalOutputBuffer = ''; // Limpar buffer
+                }
+                sudoPasswordPending = false;
+            }, 100);
+        }
+        
+        // Limpar buffer quando detectar novo prompt de comando
+        if (/[$#>]\s*$/.test(data)) {
+            terminalOutputBuffer = '';
+        }
     }
 });
 
@@ -1308,18 +1363,8 @@ function toggleSftp() {
     } else {
         icon.className = 'fas fa-folder';
     }
-    // Refit terminal after animation
-    setTimeout(() => {
-        if (fitAddon && term) {
-            fitAddon.fit();
-            if (isConnected) {
-                socket.emit('ssh-resize', {
-                    cols: term.cols,
-                    rows: term.rows
-                });
-            }
-        }
-    }, 150);
+    updateGridTemplate();
+    fitTerminal();
 }
 
 toggleSftpBtn.addEventListener('click', toggleSftp);
@@ -1585,17 +1630,17 @@ let isWaitingResponse = false;
 // Toggle Chat Panel
 toggleChatBtn.addEventListener('click', () => {
     mainContent.classList.toggle('chat-visible');
+    updateGridTemplate();
     if (mainContent.classList.contains('chat-visible')) {
         chatInput.focus();
-        fitTerminal();
-    } else {
-        fitTerminal();
     }
+    fitTerminal();
 });
 
 // Hide Chat Panel
 hideChatBtn.addEventListener('click', () => {
     mainContent.classList.remove('chat-visible');
+    updateGridTemplate();
     fitTerminal();
 });
 
@@ -2113,18 +2158,23 @@ document.addEventListener('mouseup', () => {
 });
 
 function updateGridTemplate() {
-    const sftpWidth = sftpPanel.offsetWidth;
-    const chatWidth = chatPanel.offsetWidth;
     const hasSftp = mainContent.classList.contains('sftp-visible');
     const hasChat = mainContent.classList.contains('chat-visible');
     
     if (hasSftp && hasChat) {
-        mainContent.style.gridTemplateColumns = `${sftpWidth}px 1fr ${chatWidth}px`;
+        const sftpWidth = sftpPanel.style.width || '350px';
+        const chatWidth = chatPanel.style.width || '380px';
+        mainContent.style.gridTemplateColumns = `${sftpWidth} 1fr ${chatWidth}`;
     } else if (hasSftp) {
-        mainContent.style.gridTemplateColumns = `${sftpWidth}px 1fr`;
+        const sftpWidth = sftpPanel.style.width || '350px';
+        mainContent.style.gridTemplateColumns = `${sftpWidth} 1fr`;
     } else if (hasChat) {
-        mainContent.style.gridTemplateColumns = `1fr ${chatWidth}px`;
+        const chatWidth = chatPanel.style.width || '380px';
+        mainContent.style.gridTemplateColumns = `1fr ${chatWidth}`;
     } else {
         mainContent.style.gridTemplateColumns = '1fr';
+        // Resetar larguras dos painéis quando fechados
+        chatPanel.style.width = '';
+        sftpPanel.style.width = '';
     }
 }
